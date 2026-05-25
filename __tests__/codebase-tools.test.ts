@@ -62,7 +62,31 @@ describe("readFile", () => {
   });
 
   it("throws a structured error on missing file", () => {
-    expect(() => readFile(root, { path: "nope.txt", maxBytes: 1024 })).toThrow(/Cannot read/);
+    expect(() => readFile(root, { path: "nope.txt", maxBytes: 1024 })).toThrow(/Cannot open file/);
+  });
+
+  it("refuses to read a non-regular file (FIFO / named pipe)", () => {
+    const { execFileSync } = require("node:child_process") as typeof import("node:child_process");
+    const fifo = path.join(root, "pipe.fifo");
+    try {
+      execFileSync("mkfifo", [fifo]);
+    } catch {
+      return; // mkfifo not available on this system; skip
+    }
+    expect(() => readFile(root, { path: "pipe.fifo", maxBytes: 1024 })).toThrow(
+      /Not a regular file/,
+    );
+  });
+
+  it("caps allocation at maxBytes even for files larger than the cap", () => {
+    // Even a multi-MB file should only read maxBytes worth of data — verifying
+    // the fix for the 'unbounded readFileSync' OOM vector.
+    const big = "x".repeat(3 * 1024 * 1024); // 3 MB
+    fs.writeFileSync(path.join(root, "huge.txt"), big);
+    const r = readFile(root, { path: "huge.txt", maxBytes: 512 });
+    expect(r.content.length).toBe(512);
+    expect(r.truncated).toBe(true);
+    expect(r.bytes).toBe(3 * 1024 * 1024);
   });
 });
 

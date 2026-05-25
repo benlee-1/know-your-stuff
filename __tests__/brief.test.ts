@@ -36,6 +36,16 @@ describe("brief storage", () => {
     saveBriefSync(root, "v2");
     expect(loadBriefSync(root)).toBe("v2");
   });
+
+  it("saveBrief refuses to write through a pre-existing .know-your-stuff symlink", () => {
+    const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "kys-evil-"));
+    fs.symlinkSync(outsideDir, path.join(root, ".know-your-stuff"));
+    try {
+      expect(() => saveBriefSync(root, "hello")).toThrow(/symlink/);
+    } finally {
+      fs.rmSync(outsideDir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("brief seed collection", () => {

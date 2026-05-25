@@ -80,20 +80,47 @@ export function readFile(
   input: ReadFileInput,
 ): { path: string; content: string; truncated: boolean; bytes: number } {
   const target = resolveSafe(root, input.path);
-  let buf: Buffer;
+
+  // Use openSync + fstatSync so we can enforce two safety properties BEFORE
+  // allocating any buffer for the file's contents:
+  //   1) Only read regular files. Device files (/dev/zero, /dev/random),
+  //      named pipes, sockets, etc. either never EOF or block forever; a
+  //      naive readFileSync would hang the worker or allocate until OOM.
+  //   2) Read at most maxBytes. The old readFileSync(target) allocated the
+  //      full file BEFORE applying maxBytes — a 4 GB log file in the
+  //      project root would OOM Node before the truncate ever ran.
+  // O_NONBLOCK so opening a FIFO / device file doesn't block on a writer
+  // before we get a chance to fstat and reject it.
+  let fd: number;
   try {
-    buf = fs.readFileSync(target);
+    fd = fs.openSync(target, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK);
   } catch (err) {
-    throw new Error(`Cannot read file: ${input.path} (${(err as Error).message})`);
+    throw new Error(`Cannot open file: ${input.path} (${(err as Error).message})`);
   }
-  const truncated = buf.byteLength > input.maxBytes;
-  const sliced = truncated ? buf.subarray(0, input.maxBytes) : buf;
-  return {
-    path: input.path,
-    content: sliced.toString("utf8"),
-    truncated,
-    bytes: buf.byteLength,
-  };
+  try {
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile()) {
+      throw new Error(`Not a regular file: ${input.path}`);
+    }
+    const totalBytes = stat.size;
+    const toRead = Math.min(totalBytes, input.maxBytes);
+    const buf = Buffer.allocUnsafe(toRead);
+    let read = 0;
+    while (read < toRead) {
+      const n = fs.readSync(fd, buf, read, toRead - read, read);
+      if (n <= 0) break;
+      read += n;
+    }
+    const truncated = totalBytes > input.maxBytes;
+    return {
+      path: input.path,
+      content: buf.subarray(0, read).toString("utf8"),
+      truncated,
+      bytes: totalBytes,
+    };
+  } finally {
+    try { fs.closeSync(fd); } catch {}
+  }
 }
 
 // ---------- grep ----------

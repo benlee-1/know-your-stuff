@@ -19,7 +19,22 @@ export function loadBriefSync(projectRoot: string): string {
 }
 
 export function saveBriefSync(projectRoot: string, markdown: string): void {
+  // Refuse to write through a pre-existing symlink at the brief dir. An
+  // untrusted project (e.g. a third-party repo cloned for interview prep)
+  // could ship `.know-your-stuff -> ~/.config` and turn brief saves into
+  // arbitrary-write primitives. lstat detects the symlink without following it.
   const dir = path.join(projectRoot, BRIEF_DIR);
+  try {
+    const stat = fs.lstatSync(dir);
+    if (stat.isSymbolicLink()) {
+      throw new Error(
+        `Refusing to write through symlink at ${BRIEF_DIR}/. Delete or replace it before saving the brief.`,
+      );
+    }
+  } catch (err) {
+    // ENOENT is fine — directory will be created. Anything else propagates.
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+  }
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(briefPath(projectRoot), markdown, "utf8");
 }
