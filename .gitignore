@@ -1,0 +1,19 @@
+node_modules
+.next
+out
+dist
+.DS_Store
+*.log
+
+# Local env
+.env
+.env.local
+.env*.local
+
+# Local DB
+.know-your-stuff.db
+.know-your-stuff.db-journal
+
+# IDE
+.idea
+.vscode

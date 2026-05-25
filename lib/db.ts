@@ -1,0 +1,101 @@
+import { DatabaseSync } from "node:sqlite";
+import path from "node:path";
+
+let _db: DatabaseSync | null = null;
+
+export type Db = DatabaseSync;
+
+function resolveDbPath(): string {
+  return process.env.KYS_DB_PATH ?? path.join(process.cwd(), ".know-your-stuff.db");
+}
+
+export function getDb(): Db {
+  if (_db) return _db;
+  const db = new DatabaseSync(resolveDbPath());
+  db.exec("PRAGMA journal_mode = WAL");
+  db.exec("PRAGMA foreign_keys = ON");
+  runMigrations(db);
+  _db = db;
+  return db;
+}
+
+const MIGRATIONS: { name: string; sql: string }[] = [
+  {
+    name: "001_init",
+    sql: `
+      CREATE TABLE projects (
+        id            TEXT PRIMARY KEY,
+        name          TEXT NOT NULL,
+        rootPath      TEXT NOT NULL UNIQUE,
+        createdAt     INTEGER NOT NULL,
+        lastOpenedAt  INTEGER NOT NULL
+      );
+
+      CREATE TABLE chat_messages (
+        id            TEXT PRIMARY KEY,
+        projectId     TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        mode          TEXT NOT NULL,
+        role          TEXT NOT NULL,
+        content       TEXT NOT NULL,
+        toolCallsJson TEXT,
+        createdAt     INTEGER NOT NULL
+      );
+      CREATE INDEX idx_chat_project_mode ON chat_messages(projectId, mode, createdAt);
+
+      CREATE TABLE quiz_items (
+        id            TEXT PRIMARY KEY,
+        projectId     TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        focus         TEXT NOT NULL,
+        prompt        TEXT NOT NULL,
+        idealAnswer   TEXT NOT NULL,
+        citationsJson TEXT NOT NULL,
+        createdAt     INTEGER NOT NULL
+      );
+
+      CREATE TABLE quiz_attempts (
+        id              TEXT PRIMARY KEY,
+        quizItemId      TEXT NOT NULL REFERENCES quiz_items(id) ON DELETE CASCADE,
+        userAnswer      TEXT NOT NULL,
+        score           REAL NOT NULL,
+        rationale       TEXT NOT NULL,
+        missedPointsJson TEXT NOT NULL,
+        createdAt       INTEGER NOT NULL
+      );
+    `,
+  },
+];
+
+function runMigrations(db: Db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS migrations (
+      name      TEXT PRIMARY KEY,
+      appliedAt INTEGER NOT NULL
+    );
+  `);
+  const applied = new Set(
+    db
+      .prepare("SELECT name FROM migrations")
+      .all()
+      .map((r) => (r as { name: string }).name),
+  );
+  for (const m of MIGRATIONS) {
+    if (applied.has(m.name)) continue;
+    db.exec("BEGIN");
+    try {
+      db.exec(m.sql);
+      db.prepare("INSERT INTO migrations (name, appliedAt) VALUES (?, ?)").run(m.name, Date.now());
+      db.exec("COMMIT");
+    } catch (err) {
+      db.exec("ROLLBACK");
+      throw err;
+    }
+  }
+}
+
+// Test helper — closes the singleton so tests can use ephemeral databases.
+export function _resetDbForTests() {
+  if (_db) {
+    _db.close();
+    _db = null;
+  }
+}
