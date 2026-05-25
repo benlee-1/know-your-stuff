@@ -6,7 +6,7 @@ A personal interview-prep tool. Point it at a local codebase; chat with an LLM i
 
 ```bash
 pnpm install
-cp .env.local.example .env.local   # add your Vercel AI Gateway key
+cp .env.local.example .env         # add your ANTHROPIC_API_KEY
 pnpm dev                           # opens at http://127.0.0.1:3000
 ```
 
@@ -16,7 +16,7 @@ pnpm dev                           # opens at http://127.0.0.1:3000
 - **Technical mode** answers like a staff engineer, grounding every claim in file paths via agentic `read_file` / `grep` / `list_dir` tool calls.
 - **Quiz mode** generates codebase-grounded questions, accepts free-text answers, grades them with rationale.
 
-LLM access is via Vercel AI Gateway — swap models by changing `DEFAULT_MODEL` in `.env.local`.
+LLM access is via the Anthropic API directly. Swap models by changing `DEFAULT_MODEL` in `.env` (e.g. `claude-opus-4-7`, `claude-haiku-4-5`).
 
 Local persistence: a SQLite file at the repo root (`.know-your-stuff.db`), plus a per-project `.know-your-stuff/brief.md` written inside each codebase you point at.
 
