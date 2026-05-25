@@ -15,8 +15,10 @@ import {
   getQuizItem,
   insertAttempt,
   insertQuizItems,
+  listAllAttemptsForProject,
   listAttemptsForItem,
   listQuizItems,
+  type ProjectAttemptRow,
 } from "@/lib/quiz";
 import type { QuizAttempt, QuizItem } from "@/lib/schema";
 
@@ -92,6 +94,10 @@ export async function listQuizForProject(
 
 export async function listAttempts(quizItemId: string): Promise<QuizAttempt[]> {
   return listAttemptsForItem(quizItemId);
+}
+
+export async function listProjectHistory(projectId: string): Promise<ProjectAttemptRow[]> {
+  return listAllAttemptsForProject(projectId);
 }
 
 async function generateAndParse<T>(
