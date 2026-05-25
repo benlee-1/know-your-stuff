@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { ModeToggle } from "./mode-toggle";
-import { ContextPanel, type ToolCallSummary } from "./context-panel";
+import { ContextPanel, type ToolCall } from "./context-panel";
+import { ToolDetail } from "./tool-detail";
 import { Markdown } from "./markdown";
 import { clearChatHistory } from "@/app/actions/chat-history";
 import type { ChatMessage, ChatMode } from "@/lib/schema";
@@ -44,6 +45,7 @@ function ChatForMode({
   initialMessages: UIMessage[];
 }) {
   const [input, setInput] = useState("");
+  const [selectedCallId, setSelectedCallId] = useState<string | null>(null);
   const { messages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({
       api: "/api/chat",
@@ -53,6 +55,8 @@ function ChatForMode({
   });
 
   const toolCalls = useMemo(() => extractToolCalls(messages), [messages]);
+  const selectedCall =
+    selectedCallId !== null ? toolCalls.find((c) => c.id === selectedCallId) ?? null : null;
 
   async function handleClear() {
     if (!confirm("Clear this conversation?")) return;
@@ -124,11 +128,23 @@ function ChatForMode({
         </form>
       </div>
 
-      <aside className="rounded-md border border-[hsl(var(--border))] p-3 overflow-y-auto">
-        <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          Context
-        </h3>
-        <ContextPanel calls={toolCalls} />
+      <aside className="flex flex-col rounded-md border border-[hsl(var(--border))] p-3 overflow-hidden">
+        {selectedCall ? (
+          <ToolDetail call={selectedCall} onBack={() => setSelectedCallId(null)} />
+        ) : (
+          <>
+            <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Context
+            </h3>
+            <div className="flex-1 overflow-y-auto">
+              <ContextPanel
+                calls={toolCalls}
+                selectedId={selectedCallId}
+                onSelect={setSelectedCallId}
+              />
+            </div>
+          </>
+        )}
       </aside>
     </div>
   );
@@ -160,23 +176,24 @@ function MessageBubble({ message }: { message: UIMessage }) {
   );
 }
 
-function extractToolCalls(messages: UIMessage[]): ToolCallSummary[] {
-  const out: ToolCallSummary[] = [];
+function extractToolCalls(messages: UIMessage[]): ToolCall[] {
+  const out: ToolCall[] = [];
   for (const m of messages) {
     if (m.role !== "assistant" || !m.parts) continue;
-    for (const part of m.parts as Array<{ type: string; [k: string]: unknown }>) {
+    for (const part of m.parts as Array<{
+      type: string;
+      toolCallId?: string;
+      input?: Record<string, unknown>;
+      output?: Record<string, unknown>;
+    }>) {
       if (typeof part.type !== "string") continue;
       if (!part.type.startsWith("tool-")) continue;
       const name = part.type.replace(/^tool-/, "");
-      const input = (part as { input?: Record<string, unknown> }).input ?? {};
-      const output = (part as { output?: Record<string, unknown> }).output ?? {};
       out.push({
+        id: part.toolCallId ?? `${m.id}-${out.length}`,
         name,
-        path: typeof input.path === "string" ? input.path : undefined,
-        query: typeof input.query === "string" ? input.query : undefined,
-        hits: Array.isArray((output as { hits?: unknown[] }).hits)
-          ? ((output as { hits: unknown[] }).hits.length as number)
-          : undefined,
+        input: part.input ?? {},
+        output: part.output ?? null,
       });
     }
   }
