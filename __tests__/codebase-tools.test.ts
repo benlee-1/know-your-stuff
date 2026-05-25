@@ -62,7 +62,31 @@ describe("readFile", () => {
   });
 
   it("throws a structured error on missing file", () => {
-    expect(() => readFile(root, { path: "nope.txt", maxBytes: 1024 })).toThrow(/Cannot read/);
+    expect(() => readFile(root, { path: "nope.txt", maxBytes: 1024 })).toThrow(/Cannot open file/);
+  });
+
+  it("refuses to read a non-regular file (FIFO / named pipe)", () => {
+    const { execFileSync } = require("node:child_process") as typeof import("node:child_process");
+    const fifo = path.join(root, "pipe.fifo");
+    try {
+      execFileSync("mkfifo", [fifo]);
+    } catch {
+      return; // mkfifo not available on this system; skip
+    }
+    expect(() => readFile(root, { path: "pipe.fifo", maxBytes: 1024 })).toThrow(
+      /Not a regular file/,
+    );
+  });
+
+  it("caps allocation at maxBytes even for files larger than the cap", () => {
+    // Even a multi-MB file should only read maxBytes worth of data — verifying
+    // the fix for the 'unbounded readFileSync' OOM vector.
+    const big = "x".repeat(3 * 1024 * 1024); // 3 MB
+    fs.writeFileSync(path.join(root, "huge.txt"), big);
+    const r = readFile(root, { path: "huge.txt", maxBytes: 512 });
+    expect(r.content.length).toBe(512);
+    expect(r.truncated).toBe(true);
+    expect(r.bytes).toBe(3 * 1024 * 1024);
   });
 });
 
@@ -77,6 +101,60 @@ describe("grep", () => {
   it("does not match inside skipped directories", () => {
     const r = grep(root, { query: "greet", path: ".", maxResults: 100, caseSensitive: false });
     expect(r.hits.find((h) => h.path.includes("node_modules"))).toBeUndefined();
+  });
+
+  it("treats a leading-dash query as a literal (the `--` separator works)", () => {
+    fs.writeFileSync(path.join(root, "src", "flag.ts"), "if (--flag) {}\n");
+    const r = grep(root, {
+      query: "--flag",
+      path: ".",
+      maxResults: 100,
+      caseSensitive: false,
+    });
+    // Must find the literal occurrence — not be interpreted as an rg flag.
+    expect(r.hits.find((h) => h.path === path.join("src", "flag.ts"))).toBeDefined();
+  });
+
+  it("does not return more hits than maxResults", () => {
+    for (let i = 0; i < 10; i++) {
+      fs.writeFileSync(path.join(root, `m${i}.txt`), "greet\n");
+    }
+    const r = grep(root, { query: "greet", path: ".", maxResults: 3, caseSensitive: false });
+    expect(r.hits.length).toBe(3);
+    expect(r.truncated).toBe(true);
+  });
+
+  it("truncated is false when total hits exactly equal maxResults", () => {
+    // Fresh root with exactly N matches and nothing else, so we don't conflict
+    // with the baseline fixtures.
+    const onlyRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kys-exact-"));
+    try {
+      for (let i = 0; i < 3; i++) {
+        fs.writeFileSync(path.join(onlyRoot, `m${i}.txt`), "needle\n");
+      }
+      const r = grep(onlyRoot, {
+        query: "needle",
+        path: ".",
+        maxResults: 3,
+        caseSensitive: false,
+      });
+      expect(r.hits.length).toBe(3);
+      expect(r.truncated).toBe(false);
+    } finally {
+      fs.rmSync(onlyRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("listDir skip-list", () => {
+  it("rejects targeting a skip-listed directory directly", () => {
+    expect(() => listDir(root, { path: "node_modules" })).toThrow(/skip-listed/);
+  });
+
+  it("rejects targeting a path with a skip-listed segment in the middle", () => {
+    fs.mkdirSync(path.join(root, "wrap"));
+    fs.mkdirSync(path.join(root, "wrap", "node_modules"));
+    expect(() => listDir(root, { path: "wrap/node_modules" })).toThrow(/skip-listed/);
   });
 
   it("case-insensitive by default", () => {

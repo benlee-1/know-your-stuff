@@ -11,9 +11,11 @@ dist
 !.env.local.example
 !.env.example
 
-# Local DB
+# Local DB (WAL mode produces -shm and -wal sidecars in addition to -journal)
 .know-your-stuff.db
 .know-your-stuff.db-journal
+.know-your-stuff.db-shm
+.know-your-stuff.db-wal
 
 # IDE
 .idea

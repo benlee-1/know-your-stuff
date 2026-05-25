@@ -12,6 +12,11 @@ import {
   QuizGradeSchema,
 } from "@/lib/prompts/quiz";
 import {
+  clampQuizCount,
+  filterAndClampQuestions,
+  isResearchTextActionable,
+} from "@/lib/quiz-helpers";
+import {
   getQuizItem,
   insertAttempt,
   insertQuizItems,
@@ -30,7 +35,7 @@ export async function generateQuizBatch(args: {
   const p = getProjectRaw(args.projectId);
   if (!p) throw new Error("Project not found");
   const brief = loadBriefSync(p.rootPath);
-  const count = Math.max(1, Math.min(10, args.count));
+  const count = clampQuizCount(args.count);
 
   // Phase 1: research with tools. Strict prompt requiring the model to
   // (a) actually inspect the repo and (b) terminate with a plain-text
@@ -65,7 +70,7 @@ End your turn with that list as plain text. The next step will convert it to JSO
   });
 
   const text = research.text?.trim() ?? "";
-  if (!text || text.length < 80) {
+  if (!isResearchTextActionable(text)) {
     console.error("[quiz] research text empty/short. finishReason=", research.finishReason);
     console.error("[quiz] steps=", research.steps?.length, "toolCalls=",
       research.steps?.reduce((n, s) => n + (s.toolCalls?.length ?? 0), 0),
@@ -87,9 +92,7 @@ Source material:
 ${text}`,
   });
 
-  const questions = object.questions.filter(
-    (q) => q.prompt.trim() && q.idealAnswer.trim(),
-  );
+  const questions = filterAndClampQuestions(object.questions, count);
 
   if (questions.length === 0) {
     console.error("[quiz] formatter returned 0 questions. raw=", JSON.stringify(object));
@@ -99,7 +102,7 @@ ${text}`,
   return insertQuizItems({
     projectId: args.projectId,
     focus: args.focus,
-    questions: questions.slice(0, count),
+    questions,
   });
 }
 

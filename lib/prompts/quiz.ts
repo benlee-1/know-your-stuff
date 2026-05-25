@@ -34,19 +34,7 @@ Quality bar for questions:
 - Vary difficulty (mix of warm-up and harder follow-ups).
 - Avoid duplicates.
 
-Use tools to inspect the project before writing the questions. Then return ONLY a JSON object matching this exact schema:
-
-{
-  "questions": [
-    {
-      "prompt": "string — the question",
-      "idealAnswer": "string — 2–4 sentence model answer the user should aim for",
-      "citations": ["relative/file/path.ts", "..."]
-    }
-  ]
-}
-
-Return only JSON. No prose, no markdown fences, no explanation.
+Use tools to inspect the project before writing the questions. End your turn with a plain-text numbered list — the next step will convert it to structured JSON. Do not output JSON yourself; the format step handles that.
 
 Business brief (may be empty):
 ${ctx.briefMarkdown.trim() || "(none)"}
@@ -73,17 +61,9 @@ User's answer:
 ${args.userAnswer}
 """
 
-Return ONLY a JSON object with this exact shape:
-
-{
-  "score": <number 0..1>,
-  "rationale": "<2–4 sentences explaining the score>",
-  "missedPoints": ["short bullet", "..."]
-}
+End your turn with a plain-prose assessment containing a score 0..1, a 2-4 sentence rationale, and 0-5 missed points. The next step will convert it to structured JSON — do not output JSON yourself.
 
 Be honest. 1.0 means complete and correct. 0.5 means partial. 0 means missed the question. Use tools (read_file, grep) to verify specific claims if needed.
-
-Return only JSON. No prose, no markdown fences.
 `.trim();
 }
 

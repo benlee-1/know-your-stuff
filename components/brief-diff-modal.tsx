@@ -21,14 +21,17 @@ export function BriefDiffModal({
   onCancel: () => void;
 }) {
   const [status, setStatus] = useState<Status>({ kind: "loading" });
-
+  // Snapshot currentText on mount only. Re-running the (expensive) LLM
+  // generation every time the parent passes a new `currentText` would
+  // (a) cost a fresh API call and (b) race the user's in-flight edits.
+  // We intentionally drop currentText from the dep array.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const { generated } = await previewBriefGeneration(projectId);
+        const { existing, generated } = await previewBriefGeneration(projectId);
         if (!cancelled) {
-          setStatus({ kind: "ready", existing: currentText, generated });
+          setStatus({ kind: "ready", existing, generated });
         }
       } catch (e) {
         if (!cancelled) {
@@ -42,7 +45,8 @@ export function BriefDiffModal({
     return () => {
       cancelled = true;
     };
-  }, [projectId, currentText]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
 
   return (
     <div

@@ -87,8 +87,12 @@ function ChatForMode({
                   : "Quiz mode lives at the Quiz page. (Use the link in the header.)"}
             </p>
           )}
-          {messages.map((m) => (
-            <MessageBubble key={m.id} message={m} />
+          {messages.map((m, i) => (
+            <MessageBubble
+              key={m.id}
+              message={m}
+              isStreaming={status === "streaming" && i === messages.length - 1}
+            />
           ))}
           {status === "streaming" && (
             <div className="text-xs text-muted-foreground">thinking…</div>
@@ -150,11 +154,14 @@ function ChatForMode({
   );
 }
 
-function MessageBubble({ message }: { message: UIMessage }) {
+function MessageBubble({ message, isStreaming }: { message: UIMessage; isStreaming: boolean }) {
   const text = (message.parts ?? [])
     .filter((p): p is { type: "text"; text: string } => p.type === "text")
     .map((p) => p.text)
     .join("\n");
+  const hasToolParts = (message.parts ?? []).some(
+    (p) => typeof (p as { type?: string }).type === "string" && (p as { type: string }).type.startsWith("tool-"),
+  );
   const isUser = message.role === "user";
   if (isUser) {
     return (
@@ -165,12 +172,17 @@ function MessageBubble({ message }: { message: UIMessage }) {
       </div>
     );
   }
+  const placeholder = isStreaming
+    ? "(thinking…)"
+    : hasToolParts
+      ? "(no final response — see tool calls in the context panel)"
+      : "(empty response)";
   return (
     <div className="max-w-[90%] rounded-lg bg-[hsl(var(--muted))] px-3 py-2 text-sm">
       {text ? (
         <Markdown>{text}</Markdown>
       ) : (
-        <span className="italic text-muted-foreground">(thinking…)</span>
+        <span className="italic text-muted-foreground">{placeholder}</span>
       )}
     </div>
   );

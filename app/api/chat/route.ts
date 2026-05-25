@@ -8,20 +8,37 @@ import { buildBusinessSystemPrompt } from "@/lib/prompts/business";
 import { buildTechnicalSystemPrompt } from "@/lib/prompts/technical";
 import { ChatModeSchema } from "@/lib/schema";
 import { appendMessage } from "@/lib/chat-history";
+import {
+  buildToolPartsFromSteps,
+  extractText,
+  isLocalHost,
+} from "@/lib/chat-route-helpers";
 
 export const maxDuration = 300;
 
 const BodySchema = z.object({
   projectId: z.string().min(1),
   mode: ChatModeSchema,
-  messages: z.array(z.any()),
+  messages: z.array(z.any()).max(200),
 });
 
 export async function POST(req: Request) {
+  const host = req.headers.get("host");
+  const origin = req.headers.get("origin");
+  // DNS-rebinding defense: reject any request whose Host isn't local, or
+  // whose Origin is set but isn't local. (Origin can be absent on legitimate
+  // same-origin POSTs from older clients; Host is always present.)
+  if (!isLocalHost(host) || (origin !== null && !isLocalHost(origin))) {
+    return new Response(JSON.stringify({ error: "forbidden: non-local origin" }), {
+      status: 403,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
   let parsed;
   try {
     parsed = BodySchema.parse(await req.json());
-  } catch (e) {
+  } catch {
     return new Response(JSON.stringify({ error: "bad request" }), {
       status: 400,
       headers: { "content-type": "application/json" },
@@ -47,7 +64,6 @@ export async function POST(req: Request) {
       ? buildBusinessSystemPrompt({ projectName: project.name, briefMarkdown: brief })
       : buildTechnicalSystemPrompt({ projectName: project.name, briefMarkdown: brief });
 
-  // Business mode hides grep (the model should lean on docs, not crawl code).
   const tools = makeCodebaseTools(project.rootPath, {
     enable: {
       list_dir: true,
@@ -56,12 +72,13 @@ export async function POST(req: Request) {
     },
   });
 
-  // Persist the user's latest message (last in array).
+  // Capture the user's latest message but DO NOT persist yet. If streamText
+  // errors mid-turn (429, 5xx, network), persisting the user message up front
+  // leaves a dangling row with no assistant reply, distorting the conversation
+  // shape on reload. Both user + assistant rows are written together in
+  // onFinish; on error neither lands and the user can retry cleanly.
   const last = messages[messages.length - 1];
-  if (last?.role === "user") {
-    const text = extractText(last);
-    if (text) appendMessage({ projectId, mode, role: "user", content: text });
-  }
+  const userTextToPersist = last?.role === "user" ? extractText(last) : "";
 
   const result = streamText({
     model: getModel(),
@@ -71,6 +88,9 @@ export async function POST(req: Request) {
     stopWhen: ({ steps }) => steps.length >= 8,
     onFinish: ({ text, steps }) => {
       const toolParts = buildToolPartsFromSteps(steps);
+      if (userTextToPersist) {
+        appendMessage({ projectId, mode, role: "user", content: userTextToPersist });
+      }
       if (text || toolParts.length > 0) {
         appendMessage({
           projectId,
@@ -81,45 +101,10 @@ export async function POST(req: Request) {
         });
       }
     },
+    onError: ({ error }) => {
+      console.error("[chat] stream error:", error);
+    },
   });
 
   return result.toUIMessageStreamResponse();
-}
-
-function extractText(msg: UIMessage): string {
-  if (!msg.parts) return "";
-  return msg.parts
-    .filter((p): p is { type: "text"; text: string } => p.type === "text")
-    .map((p) => p.text)
-    .join("\n");
-}
-
-/**
- * Aggregate every tool call across every step of the assistant's turn into the
- * UIMessage-compatible "tool-<name>" parts shape. onFinish.toolCalls only
- * surfaces the FINAL step's calls — for multi-step flows that's empty.
- */
-function buildToolPartsFromSteps(
-  steps: ReadonlyArray<{
-    toolCalls?: ReadonlyArray<{ toolCallId: string; toolName: string; input: unknown }>;
-    toolResults?: ReadonlyArray<{ toolCallId: string; output: unknown }>;
-  }> | undefined,
-): Array<{ type: string; toolCallId: string; input: unknown; output: unknown }> {
-  if (!steps?.length) return [];
-  const outputs = new Map<string, unknown>();
-  for (const s of steps) {
-    for (const r of s.toolResults ?? []) outputs.set(r.toolCallId, r.output);
-  }
-  const parts: Array<{ type: string; toolCallId: string; input: unknown; output: unknown }> = [];
-  for (const s of steps) {
-    for (const c of s.toolCalls ?? []) {
-      parts.push({
-        type: `tool-${c.toolName}`,
-        toolCallId: c.toolCallId,
-        input: c.input,
-        output: outputs.get(c.toolCallId) ?? null,
-      });
-    }
-  }
-  return parts;
 }
