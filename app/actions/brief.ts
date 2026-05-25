@@ -22,6 +22,16 @@ export async function saveBrief(projectId: string, markdown: string): Promise<vo
   saveBriefSync(p.rootPath, markdown);
 }
 
+async function generateBriefMarkdown(rootPath: string, name: string): Promise<string> {
+  const seed = collectBriefSeed(rootPath);
+  const prompt = buildBriefGenerationPrompt(name, seed);
+  const res = await generateText({
+    model: getModel(),
+    prompt,
+  });
+  return res.text.trim();
+}
+
 export async function generateBrief(
   projectId: string,
   opts: { force?: boolean } = {},
@@ -32,15 +42,18 @@ export async function generateBrief(
   const existing = loadBriefSync(p.rootPath);
   if (existing.trim() && !opts.force) return existing;
 
-  const seed = collectBriefSeed(p.rootPath);
-  const prompt = buildBriefGenerationPrompt(p.name, seed);
-
-  const res = await generateText({
-    model: getModel(),
-    prompt,
-  });
-
-  const markdown = res.text.trim();
+  const markdown = await generateBriefMarkdown(p.rootPath, p.name);
   saveBriefSync(p.rootPath, markdown);
   return markdown;
+}
+
+export async function previewBriefGeneration(
+  projectId: string,
+): Promise<{ existing: string; generated: string }> {
+  const p = getProjectRaw(projectId);
+  if (!p) throw new Error("Project not found");
+
+  const existing = loadBriefSync(p.rootPath);
+  const generated = await generateBriefMarkdown(p.rootPath, p.name);
+  return { existing, generated };
 }

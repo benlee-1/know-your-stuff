@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { generateBrief, saveBrief } from "@/app/actions/brief";
+import { BriefDiffModal } from "@/components/brief-diff-modal";
 
 export function BriefEditor({
   projectId,
@@ -13,6 +14,7 @@ export function BriefEditor({
   const [value, setValue] = useState(initial);
   const [status, setStatus] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [showDiff, setShowDiff] = useState(false);
 
   function save() {
     setStatus(null);
@@ -35,6 +37,20 @@ export function BriefEditor({
         setStatus("Regenerated from repo.");
       } catch (e) {
         setStatus(e instanceof Error ? e.message : "Failed to generate");
+      }
+    });
+  }
+
+  function applyGenerated(generated: string) {
+    setShowDiff(false);
+    setStatus(null);
+    setValue(generated);
+    startTransition(async () => {
+      try {
+        await saveBrief(projectId, generated);
+        setStatus("Regenerated from repo.");
+      } catch (e) {
+        setStatus(e instanceof Error ? e.message : "Failed to save");
       }
     });
   }
@@ -64,16 +80,22 @@ export function BriefEditor({
           Generate from repo
         </button>
         <button
-          onClick={() => {
-            if (confirm("Overwrite existing brief with a fresh generation?")) regenerate(true);
-          }}
-          disabled={pending}
+          onClick={() => setShowDiff(true)}
+          disabled={pending || showDiff}
           className="rounded-md border border-[hsl(var(--border))] px-4 py-2 text-sm disabled:opacity-50"
         >
           Regenerate (overwrite)
         </button>
         {status && <span className="text-sm text-muted-foreground">{status}</span>}
       </div>
+      {showDiff && (
+        <BriefDiffModal
+          projectId={projectId}
+          currentText={value}
+          onConfirm={applyGenerated}
+          onCancel={() => setShowDiff(false)}
+        />
+      )}
     </div>
   );
 }
