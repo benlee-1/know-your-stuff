@@ -5,10 +5,11 @@ dist
 .DS_Store
 *.log
 
-# Local env
+# Local env (covers .env, .env.local, .env.save, .env.bak, etc.)
 .env
-.env.local
-.env*.local
+.env.*
+!.env.local.example
+!.env.example
 
 # Local DB
 .know-your-stuff.db
