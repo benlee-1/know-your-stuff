@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { listProjects } from "./actions/projects";
 import { AddProjectForm } from "@/components/add-project-form";
+import { ProjectRow } from "@/components/project-row";
 
 export default async function HomePage() {
   const projects = await listProjects();
@@ -24,16 +24,7 @@ export default async function HomePage() {
           <ul className="divide-y divide-[hsl(var(--border))] rounded-md border border-[hsl(var(--border))]">
             {projects.map((p) => (
               <li key={p.id}>
-                <Link
-                  href={`/chat/${p.id}`}
-                  className="flex items-center justify-between px-4 py-3 hover:bg-[hsl(var(--muted))]"
-                >
-                  <div>
-                    <div className="font-medium">{p.name}</div>
-                    <div className="text-xs text-muted-foreground">{p.rootPath}</div>
-                  </div>
-                  <span className="text-xs text-muted-foreground">Open →</span>
-                </Link>
+                <ProjectRow project={p} />
               </li>
             ))}
           </ul>
