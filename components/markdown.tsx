@@ -1,7 +1,125 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import type { Highlighter, BundledLanguage, BundledTheme } from "shiki";
+
+/**
+ * Languages we eagerly support. Anything else falls back to plaintext.
+ */
+const SUPPORTED_LANGS: BundledLanguage[] = [
+  "ts",
+  "tsx",
+  "js",
+  "jsx",
+  "json",
+  "bash",
+  "sh",
+  "sql",
+  "md",
+  "html",
+  "css",
+  "python",
+  "ruby",
+  "go",
+  "rust",
+];
+
+const LIGHT_THEME: BundledTheme = "github-light";
+const DARK_THEME: BundledTheme = "github-dark-dimmed";
+
+let highlighterPromise: Promise<Highlighter> | null = null;
+
+function getHighlighter(): Promise<Highlighter> {
+  if (!highlighterPromise) {
+    highlighterPromise = import("shiki").then((shiki) =>
+      shiki.createHighlighter({
+        themes: [LIGHT_THEME, DARK_THEME],
+        langs: SUPPORTED_LANGS,
+      }),
+    );
+  }
+  return highlighterPromise;
+}
+
+function extractLang(className: string | undefined): string | null {
+  if (!className) return null;
+  const match = /language-([\w-]+)/.exec(className);
+  return match ? match[1] : null;
+}
+
+function childrenToString(children: React.ReactNode): string {
+  if (typeof children === "string") return children;
+  if (Array.isArray(children)) return children.map(childrenToString).join("");
+  if (children == null || typeof children === "boolean") return "";
+  if (typeof children === "number") return String(children);
+  if (
+    typeof children === "object" &&
+    "props" in (children as unknown as Record<string, unknown>)
+  ) {
+    const props = (children as { props?: { children?: React.ReactNode } })
+      .props;
+    return childrenToString(props?.children);
+  }
+  return "";
+}
+
+function HighlightedCode({
+  code,
+  lang,
+}: {
+  code: string;
+  lang: string;
+}) {
+  const [html, setHtml] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const supported = (SUPPORTED_LANGS as string[]).includes(lang)
+      ? lang
+      : "plaintext";
+
+    getHighlighter()
+      .then((highlighter) => {
+        if (cancelled) return;
+        try {
+          const out = highlighter.codeToHtml(code, {
+            lang: supported,
+            themes: { light: LIGHT_THEME, dark: DARK_THEME },
+            defaultColor: false,
+          });
+          setHtml(out);
+        } catch {
+          // Unknown lang or partial token during streaming — leave fallback.
+        }
+      })
+      .catch(() => {
+        // Highlighter failed to load — leave fallback.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [code, lang]);
+
+  if (html) {
+    return (
+      <div
+        className="my-3 overflow-x-auto rounded-md text-xs [&>pre]:!bg-[hsl(var(--muted))] [&>pre]:p-3 [&>pre]:overflow-x-auto"
+        // shiki output is sanitized html generated from our own source
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+    );
+  }
+
+  // Fallback while loading or on failure.
+  return (
+    <pre className="my-3 overflow-x-auto rounded-md bg-[hsl(var(--muted))] p-3 text-xs">
+      <code className={`language-${lang} font-mono text-xs`}>{code}</code>
+    </pre>
+  );
+}
 
 /**
  * Renders assistant messages. Styles each element directly with Tailwind so
@@ -58,13 +176,10 @@ export function Markdown({ children }: { children: string }) {
           <td className="border border-[hsl(var(--border))] px-2 py-1 align-top" {...p} />
         ),
         code: ({ className, children, ...rest }) => {
-          const isBlock = className?.startsWith("language-");
-          if (isBlock) {
-            return (
-              <code className={`${className ?? ""} font-mono text-xs`} {...rest}>
-                {children}
-              </code>
-            );
+          const lang = extractLang(className);
+          if (lang) {
+            const code = childrenToString(children).replace(/\n$/, "");
+            return <HighlightedCode code={code} lang={lang} />;
           }
           return (
             <code
@@ -75,12 +190,31 @@ export function Markdown({ children }: { children: string }) {
             </code>
           );
         },
-        pre: (p) => (
-          <pre
-            className="my-3 overflow-x-auto rounded-md bg-[hsl(var(--muted))] p-3 text-xs"
-            {...p}
-          />
-        ),
+        pre: ({ children, ...rest }) => {
+          // If our highlighted block is inside, the child already provides its
+          // own wrapper — render children without an extra <pre>.
+          const onlyChild = Array.isArray(children) ? children[0] : children;
+          if (
+            onlyChild &&
+            typeof onlyChild === "object" &&
+            "props" in (onlyChild as unknown as Record<string, unknown>)
+          ) {
+            const cls = (
+              onlyChild as { props?: { className?: string } }
+            ).props?.className;
+            if (extractLang(cls)) {
+              return <>{children}</>;
+            }
+          }
+          return (
+            <pre
+              className="my-3 overflow-x-auto rounded-md bg-[hsl(var(--muted))] p-3 text-xs"
+              {...rest}
+            >
+              {children}
+            </pre>
+          );
+        },
       }}
     >
       {children}
