@@ -58,4 +58,19 @@ describe("resolveSafe", () => {
   it("rejects when the resolved path is identical to a parent of root", () => {
     expect(() => resolveSafe(root, "..")).toThrow(SandboxError);
   });
+
+  it("rejects access through a chain of symlinks where the final target is outside root", () => {
+    // root/link1 -> root/link2, root/link2 -> outsideDir
+    // realpath should follow the chain and detect the escape.
+    fs.symlinkSync(path.join(root, "link2"), path.join(root, "link1"));
+    fs.symlinkSync(outsideDir, path.join(root, "link2"));
+    expect(() => resolveSafe(root, "link1")).toThrow(SandboxError);
+  });
+
+  it("rejects access UNDER a directory symlink that points outside root", () => {
+    // root/dirlink -> outsideDir; outsideDir/secret.txt exists.
+    fs.writeFileSync(path.join(outsideDir, "secret.txt"), "secret");
+    fs.symlinkSync(outsideDir, path.join(root, "dirlink"));
+    expect(() => resolveSafe(root, "dirlink/secret.txt")).toThrow(SandboxError);
+  });
 });

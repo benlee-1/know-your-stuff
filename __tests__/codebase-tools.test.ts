@@ -103,6 +103,60 @@ describe("grep", () => {
     expect(r.hits.find((h) => h.path.includes("node_modules"))).toBeUndefined();
   });
 
+  it("treats a leading-dash query as a literal (the `--` separator works)", () => {
+    fs.writeFileSync(path.join(root, "src", "flag.ts"), "if (--flag) {}\n");
+    const r = grep(root, {
+      query: "--flag",
+      path: ".",
+      maxResults: 100,
+      caseSensitive: false,
+    });
+    // Must find the literal occurrence — not be interpreted as an rg flag.
+    expect(r.hits.find((h) => h.path === path.join("src", "flag.ts"))).toBeDefined();
+  });
+
+  it("does not return more hits than maxResults", () => {
+    for (let i = 0; i < 10; i++) {
+      fs.writeFileSync(path.join(root, `m${i}.txt`), "greet\n");
+    }
+    const r = grep(root, { query: "greet", path: ".", maxResults: 3, caseSensitive: false });
+    expect(r.hits.length).toBe(3);
+    expect(r.truncated).toBe(true);
+  });
+
+  it("truncated is false when total hits exactly equal maxResults", () => {
+    // Fresh root with exactly N matches and nothing else, so we don't conflict
+    // with the baseline fixtures.
+    const onlyRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kys-exact-"));
+    try {
+      for (let i = 0; i < 3; i++) {
+        fs.writeFileSync(path.join(onlyRoot, `m${i}.txt`), "needle\n");
+      }
+      const r = grep(onlyRoot, {
+        query: "needle",
+        path: ".",
+        maxResults: 3,
+        caseSensitive: false,
+      });
+      expect(r.hits.length).toBe(3);
+      expect(r.truncated).toBe(false);
+    } finally {
+      fs.rmSync(onlyRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("listDir skip-list", () => {
+  it("rejects targeting a skip-listed directory directly", () => {
+    expect(() => listDir(root, { path: "node_modules" })).toThrow(/skip-listed/);
+  });
+
+  it("rejects targeting a path with a skip-listed segment in the middle", () => {
+    fs.mkdirSync(path.join(root, "wrap"));
+    fs.mkdirSync(path.join(root, "wrap", "node_modules"));
+    expect(() => listDir(root, { path: "wrap/node_modules" })).toThrow(/skip-listed/);
+  });
+
   it("case-insensitive by default", () => {
     fs.writeFileSync(path.join(root, "src", "c.ts"), "GREET_LOUDLY\n");
     const r = grep(root, { query: "greet", path: ".", maxResults: 100, caseSensitive: false });
