@@ -53,9 +53,9 @@ describe("prompts", () => {
     expect(r.success).toBe(true);
   });
 
-  it("quiz batch schema rejects empty list", () => {
+  it("quiz batch schema accepts empty list (empties are surfaced by the action layer with a diagnostic error)", () => {
     const r = QuizBatchSchema.safeParse({ questions: [] });
-    expect(r.success).toBe(false);
+    expect(r.success).toBe(true);
   });
 
   it("quiz grade schema validates", () => {

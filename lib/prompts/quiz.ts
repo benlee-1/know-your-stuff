@@ -8,12 +8,12 @@ export interface QuizGenerationContext {
 }
 
 export const QuizQuestionSchema = z.object({
-  prompt: z.string().min(1),
-  idealAnswer: z.string().min(1),
+  prompt: z.string(),
+  idealAnswer: z.string(),
   citations: z.array(z.string()).default([]),
 });
 export const QuizBatchSchema = z.object({
-  questions: z.array(QuizQuestionSchema).min(1),
+  questions: z.array(QuizQuestionSchema),
 });
 export type QuizQuestion = z.infer<typeof QuizQuestionSchema>;
 

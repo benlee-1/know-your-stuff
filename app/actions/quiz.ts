@@ -1,6 +1,6 @@
 "use server";
 
-import { generateObject, generateText } from "ai";
+import { generateText, Output } from "ai";
 import { getModel } from "@/lib/ai";
 import { loadBriefSync } from "@/lib/brief";
 import { makeCodebaseTools } from "@/lib/codebase-tools-ai";
@@ -32,45 +32,42 @@ export async function generateQuizBatch(args: {
   const brief = loadBriefSync(p.rootPath);
   const count = Math.max(1, Math.min(10, args.count));
 
-  // Phase 1: research with tools. Model explores the repo / brief and drafts
-  // questions in free-form prose. No JSON pressure on this step — the model
-  // can end the turn however it wants.
   const tools = makeCodebaseTools(p.rootPath, {
     enable: { list_dir: true, read_file: true, grep: args.focus === "technical" },
   });
-  const research = await generateText({
+
+  const res = await generateText({
     model: getModel(),
     tools,
-    stopWhen: ({ steps }) => steps.length >= 12,
-    prompt: `${buildQuizGenerationPrompt({
+    stopWhen: ({ steps }) => steps.length >= 16,
+    experimental_output: Output.object({ schema: QuizBatchSchema }),
+    prompt: buildQuizGenerationPrompt({
       projectName: p.name,
       focus: args.focus,
       count,
       briefMarkdown: brief,
-    })}
-
-For this research step, do not worry about JSON. After exploring as needed, output ${count} questions as a plain numbered list. For each question include:
-- The question prompt
-- An ideal 2-4 sentence answer
-- 0-3 citation paths (relative file paths) when relevant
-`,
+    }),
   });
 
-  // Phase 2: format. No tools, no prose latitude — generateObject pins the
-  // model to the schema via JSON mode / tool calling under the hood.
-  const { object } = await generateObject({
-    model: getModel(),
-    schema: QuizBatchSchema,
-    prompt: `Convert the following interview questions into the structured schema. Preserve the question text and ideal answer verbatim. Use the citations as-is.
+  const questions = (res.experimental_output?.questions ?? []).filter(
+    (q) => q.prompt.trim() && q.idealAnswer.trim(),
+  );
 
-Source material:
-${research.text}`,
-  });
+  if (questions.length === 0) {
+    console.error("[quiz] empty result. finishReason=", res.finishReason);
+    console.error("[quiz] text snippet=", res.text?.slice(0, 500));
+    console.error("[quiz] steps=", res.steps?.length, "toolCalls=",
+      res.steps?.reduce((n, s) => n + (s.toolCalls?.length ?? 0), 0),
+    );
+    throw new Error(
+      `No questions generated (finishReason=${res.finishReason}). The model explored the repo but didn't produce a structured batch. Try a lower question count or a different focus.`,
+    );
+  }
 
   return insertQuizItems({
     projectId: args.projectId,
     focus: args.focus,
-    questions: object.questions.slice(0, count),
+    questions: questions.slice(0, count),
   });
 }
 
@@ -89,34 +86,29 @@ export async function submitQuizAnswer(args: {
 
   const citations: string[] = JSON.parse(item.citationsJson || "[]");
 
-  // Phase 1: research — model verifies claims against the code if helpful.
   const tools = makeCodebaseTools(project.rootPath, {
     enable: { list_dir: false, read_file: true, grep: item.focus === "technical" },
   });
-  const research = await generateText({
+
+  const res = await generateText({
     model: getModel(),
     tools,
-    stopWhen: ({ steps }) => steps.length >= 8,
-    prompt: `${buildQuizGradingPrompt({
+    stopWhen: ({ steps }) => steps.length >= 10,
+    experimental_output: Output.object({ schema: QuizGradeSchema }),
+    prompt: buildQuizGradingPrompt({
       prompt: item.prompt,
       idealAnswer: item.idealAnswer,
       userAnswer: trimmed,
       citations,
-    })}
-
-For this research step, do not worry about JSON. After checking citations if helpful, write your assessment as plain prose: a score between 0 and 1, a 2-4 sentence rationale, and 0-5 missed points the user did not cover.
-`,
+    }),
   });
 
-  // Phase 2: format.
-  const { object: grade } = await generateObject({
-    model: getModel(),
-    schema: QuizGradeSchema,
-    prompt: `Convert the following grading assessment into the structured schema. Preserve the score, rationale, and missed points verbatim.
-
-Source material:
-${research.text}`,
-  });
+  const grade = res.experimental_output;
+  if (!grade) {
+    console.error("[grade] empty result. finishReason=", res.finishReason);
+    console.error("[grade] text snippet=", res.text?.slice(0, 500));
+    throw new Error(`Grading produced no structured output (finishReason=${res.finishReason}).`);
+  }
 
   return insertAttempt({
     quizItemId: item.id,
