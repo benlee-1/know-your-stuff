@@ -94,3 +94,34 @@ export function listAttemptsForItem(quizItemId: string): QuizAttempt[] {
     .all(quizItemId) as QuizAttempt[];
   return toPlainArray(rows);
 }
+
+export type ProjectAttemptRow = QuizAttempt & {
+  prompt: string;
+  focus: "business" | "technical";
+  citationsJson: string;
+  projectId: string;
+};
+
+export function listAllAttemptsForProject(projectId: string): ProjectAttemptRow[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT
+         a.id              AS id,
+         a.quizItemId      AS quizItemId,
+         a.userAnswer      AS userAnswer,
+         a.score           AS score,
+         a.rationale       AS rationale,
+         a.missedPointsJson AS missedPointsJson,
+         a.createdAt       AS createdAt,
+         i.prompt          AS prompt,
+         i.focus           AS focus,
+         i.citationsJson   AS citationsJson,
+         i.projectId       AS projectId
+       FROM quiz_attempts a
+       INNER JOIN quiz_items i ON i.id = a.quizItemId
+       WHERE i.projectId = ?
+       ORDER BY a.createdAt DESC`,
+    )
+    .all(projectId) as ProjectAttemptRow[];
+  return toPlainArray(rows);
+}

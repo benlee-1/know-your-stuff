@@ -54,6 +54,12 @@ export default async function ChatPage({
           >
             Quiz
           </Link>
+          <Link
+            href={`/chat/${projectId}/quiz/history`}
+            className="text-sm text-muted-foreground hover:underline"
+          >
+            History
+          </Link>
           <ProjectSwitcher current={project} projects={projects} />
         </div>
       </header>
