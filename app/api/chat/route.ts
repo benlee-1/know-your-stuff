@@ -69,14 +69,15 @@ export async function POST(req: Request) {
     messages: convertToModelMessages(messages),
     tools,
     stopWhen: ({ steps }) => steps.length >= 8,
-    onFinish: ({ text, toolCalls }) => {
-      if (text) {
+    onFinish: ({ text, steps }) => {
+      const toolParts = buildToolPartsFromSteps(steps);
+      if (text || toolParts.length > 0) {
         appendMessage({
           projectId,
           mode,
           role: "assistant",
           content: text,
-          toolCalls: toolCalls?.length ? toolCalls : undefined,
+          toolCalls: toolParts.length ? toolParts : undefined,
         });
       }
     },
@@ -91,4 +92,34 @@ function extractText(msg: UIMessage): string {
     .filter((p): p is { type: "text"; text: string } => p.type === "text")
     .map((p) => p.text)
     .join("\n");
+}
+
+/**
+ * Aggregate every tool call across every step of the assistant's turn into the
+ * UIMessage-compatible "tool-<name>" parts shape. onFinish.toolCalls only
+ * surfaces the FINAL step's calls — for multi-step flows that's empty.
+ */
+function buildToolPartsFromSteps(
+  steps: ReadonlyArray<{
+    toolCalls?: ReadonlyArray<{ toolCallId: string; toolName: string; input: unknown }>;
+    toolResults?: ReadonlyArray<{ toolCallId: string; output: unknown }>;
+  }> | undefined,
+): Array<{ type: string; toolCallId: string; input: unknown; output: unknown }> {
+  if (!steps?.length) return [];
+  const outputs = new Map<string, unknown>();
+  for (const s of steps) {
+    for (const r of s.toolResults ?? []) outputs.set(r.toolCallId, r.output);
+  }
+  const parts: Array<{ type: string; toolCallId: string; input: unknown; output: unknown }> = [];
+  for (const s of steps) {
+    for (const c of s.toolCalls ?? []) {
+      parts.push({
+        type: `tool-${c.toolName}`,
+        toolCallId: c.toolCallId,
+        input: c.input,
+        output: outputs.get(c.toolCallId) ?? null,
+      });
+    }
+  }
+  return parts;
 }

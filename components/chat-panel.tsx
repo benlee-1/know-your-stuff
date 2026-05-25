@@ -203,9 +203,36 @@ function extractToolCalls(messages: UIMessage[]): ToolCall[] {
 function toUIMessages(history: ChatMessage[]): UIMessage[] {
   return history
     .filter((m) => m.role === "user" || m.role === "assistant")
-    .map((m) => ({
-      id: m.id,
-      role: m.role as "user" | "assistant",
-      parts: [{ type: "text" as const, text: m.content }],
-    }));
+    .map((m) => {
+      const parts: UIMessage["parts"] = [];
+      if (m.content) parts.push({ type: "text" as const, text: m.content });
+      if (m.role === "assistant" && m.toolCallsJson) {
+        try {
+          const stored = JSON.parse(m.toolCallsJson) as Array<{
+            type: string;
+            toolCallId: string;
+            input: unknown;
+            output: unknown;
+          }>;
+          for (const t of stored) {
+            // Cast through unknown — UIMessagePart is a discriminated union over
+            // tool names we don't know statically. The shape matches at runtime.
+            parts.push({
+              type: t.type,
+              toolCallId: t.toolCallId,
+              input: t.input,
+              output: t.output,
+              state: "output-available",
+            } as unknown as UIMessage["parts"][number]);
+          }
+        } catch {
+          // ignore malformed legacy rows
+        }
+      }
+      return {
+        id: m.id,
+        role: m.role as "user" | "assistant",
+        parts: parts.length ? parts : [{ type: "text" as const, text: m.content }],
+      };
+    });
 }
