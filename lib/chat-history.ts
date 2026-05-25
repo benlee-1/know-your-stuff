@@ -1,13 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { getDb } from "./db";
+import { getDb, toPlainArray } from "./db";
 import type { ChatMessage, ChatMode } from "./schema";
 
 export function loadHistory(projectId: string, mode: ChatMode): ChatMessage[] {
-  return getDb()
+  const rows = getDb()
     .prepare(
       "SELECT * FROM chat_messages WHERE projectId = ? AND mode = ? ORDER BY createdAt ASC",
     )
     .all(projectId, mode) as ChatMessage[];
+  return toPlainArray(rows);
 }
 
 export function appendMessage(args: {

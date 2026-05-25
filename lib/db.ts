@@ -5,6 +5,20 @@ let _db: DatabaseSync | null = null;
 
 export type Db = DatabaseSync;
 
+/**
+ * node:sqlite returns rows with `Object.create(null)` prototypes. Next.js refuses
+ * to serialize those across the Server → Client boundary, so we copy into a plain
+ * object at every read boundary.
+ */
+export function toPlain<T>(row: T | undefined | null): T | null {
+  if (row == null) return null;
+  return { ...row } as T;
+}
+
+export function toPlainArray<T>(rows: T[]): T[] {
+  return rows.map((r) => ({ ...r }) as T);
+}
+
 function resolveDbPath(): string {
   return process.env.KYS_DB_PATH ?? path.join(process.cwd(), ".know-your-stuff.db");
 }

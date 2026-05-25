@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { getDb } from "./db";
+import { getDb, toPlain, toPlainArray } from "./db";
 import type { QuizAttempt, QuizItem } from "./schema";
 
 export function insertQuizItems(args: {
@@ -37,20 +37,23 @@ export function insertQuizItems(args: {
 }
 
 export function getQuizItem(id: string): QuizItem | null {
-  return (getDb().prepare("SELECT * FROM quiz_items WHERE id = ?").get(id) as QuizItem) ?? null;
+  const row = getDb().prepare("SELECT * FROM quiz_items WHERE id = ?").get(id) as
+    | QuizItem
+    | undefined;
+  return toPlain(row);
 }
 
 export function listQuizItems(projectId: string, focus?: "business" | "technical"): QuizItem[] {
-  if (focus) {
-    return getDb()
-      .prepare(
-        "SELECT * FROM quiz_items WHERE projectId = ? AND focus = ? ORDER BY createdAt DESC",
-      )
-      .all(projectId, focus) as QuizItem[];
-  }
-  return getDb()
-    .prepare("SELECT * FROM quiz_items WHERE projectId = ? ORDER BY createdAt DESC")
-    .all(projectId) as QuizItem[];
+  const rows = (focus
+    ? getDb()
+        .prepare(
+          "SELECT * FROM quiz_items WHERE projectId = ? AND focus = ? ORDER BY createdAt DESC",
+        )
+        .all(projectId, focus)
+    : getDb()
+        .prepare("SELECT * FROM quiz_items WHERE projectId = ? ORDER BY createdAt DESC")
+        .all(projectId)) as QuizItem[];
+  return toPlainArray(rows);
 }
 
 export function insertAttempt(args: {
@@ -86,7 +89,8 @@ export function insertAttempt(args: {
 }
 
 export function listAttemptsForItem(quizItemId: string): QuizAttempt[] {
-  return getDb()
+  const rows = getDb()
     .prepare("SELECT * FROM quiz_attempts WHERE quizItemId = ? ORDER BY createdAt DESC")
     .all(quizItemId) as QuizAttempt[];
+  return toPlainArray(rows);
 }
