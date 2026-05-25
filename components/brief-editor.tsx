@@ -60,9 +60,9 @@ export function BriefEditor({
       <textarea
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        onBlur={save}
+        disabled={pending || showDiff}
         placeholder="No brief yet. Click 'Generate from repo' to draft one."
-        className="h-[60vh] w-full rounded-md border border-[hsl(var(--border))] bg-transparent p-4 font-mono text-sm outline-none focus:border-[hsl(var(--primary))]"
+        className="h-[60vh] w-full rounded-md border border-[hsl(var(--border))] bg-transparent p-4 font-mono text-sm outline-none focus:border-[hsl(var(--primary))] disabled:opacity-60"
       />
       <div className="flex items-center gap-3">
         <button
