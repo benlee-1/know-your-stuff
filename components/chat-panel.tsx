@@ -5,6 +5,7 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { ModeToggle } from "./mode-toggle";
 import { ContextPanel, type ToolCallSummary } from "./context-panel";
+import { Markdown } from "./markdown";
 import { clearChatHistory } from "@/app/actions/chat-history";
 import type { ChatMessage, ChatMode } from "@/lib/schema";
 
@@ -139,17 +140,22 @@ function MessageBubble({ message }: { message: UIMessage }) {
     .map((p) => p.text)
     .join("\n");
   const isUser = message.role === "user";
-  return (
-    <div className={isUser ? "flex justify-end" : ""}>
-      <div
-        className={
-          isUser
-            ? "max-w-[80%] rounded-lg bg-[hsl(var(--primary))] px-3 py-2 text-sm text-[hsl(var(--primary-foreground))]"
-            : "max-w-[90%] rounded-lg bg-[hsl(var(--muted))] px-3 py-2 text-sm whitespace-pre-wrap"
-        }
-      >
-        {text || <span className="text-muted-foreground italic">(thinking…)</span>}
+  if (isUser) {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[80%] rounded-lg bg-[hsl(var(--primary))] px-3 py-2 text-sm text-[hsl(var(--primary-foreground))] whitespace-pre-wrap">
+          {text}
+        </div>
       </div>
+    );
+  }
+  return (
+    <div className="max-w-[90%] rounded-lg bg-[hsl(var(--muted))] px-3 py-2 text-sm">
+      {text ? (
+        <Markdown>{text}</Markdown>
+      ) : (
+        <span className="italic text-muted-foreground">(thinking…)</span>
+      )}
     </div>
   );
 }
