@@ -1,20 +1,21 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { getDb } from "./db";
+import { getDb, toPlain, toPlainArray } from "./db";
 import type { Project } from "./schema";
 
 export function listProjectsRaw(): Project[] {
-  return getDb()
+  const rows = getDb()
     .prepare("SELECT * FROM projects ORDER BY lastOpenedAt DESC")
     .all() as Project[];
+  return toPlainArray(rows);
 }
 
 export function getProjectRaw(id: string): Project | null {
   const row = getDb()
     .prepare("SELECT * FROM projects WHERE id = ?")
     .get(id) as Project | undefined;
-  return row ?? null;
+  return toPlain(row);
 }
 
 export function addProjectRaw(input: { name: string; rootPath: string }): Project {

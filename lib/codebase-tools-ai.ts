@@ -1,4 +1,4 @@
-import { tool } from "ai";
+import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 import {
   GrepInput,
@@ -25,36 +25,38 @@ export function makeCodebaseTools(
     grep: opts.enable?.grep ?? true,
   };
 
-  const tools: Record<string, ReturnType<typeof tool>> = {};
+  const list_dir = enable.list_dir
+    ? tool({
+        description:
+          "List directory entries inside the project. Returns name/type/size; skips node_modules, .git, .next, etc.",
+        inputSchema: ListDirInput,
+        execute: async (input: ListDirInput) => listDir(root, input),
+      })
+    : undefined;
 
-  if (enable.list_dir) {
-    tools.list_dir = tool({
-      description:
-        "List directory entries inside the project. Returns name/type/size; skips node_modules, .git, .next, etc.",
-      inputSchema: ListDirInput,
-      execute: async (input) => listDir(root, input),
-    });
-  }
+  const read_file = enable.read_file
+    ? tool({
+        description:
+          "Read a file from the project. Returns content (utf-8) up to maxBytes (default 200KB). Reports truncated:true when the file was longer than maxBytes.",
+        inputSchema: ReadFileInput,
+        execute: async (input: ReadFileInput) => readFile(root, input),
+      })
+    : undefined;
 
-  if (enable.read_file) {
-    tools.read_file = tool({
-      description:
-        "Read a file from the project. Returns content (utf-8) up to maxBytes (default 200KB). Reports truncated:true when the file was longer than maxBytes.",
-      inputSchema: ReadFileInput,
-      execute: async (input) => readFile(root, input),
-    });
-  }
+  const grepTool = enable.grep
+    ? tool({
+        description:
+          "Search file contents for a substring across the project. Returns hits with path, line number, and preview.",
+        inputSchema: GrepInput,
+        execute: async (input: GrepInput) => grep(root, input),
+      })
+    : undefined;
 
-  if (enable.grep) {
-    tools.grep = tool({
-      description:
-        "Search file contents for a substring across the project. Returns hits with path, line number, and preview.",
-      inputSchema: GrepInput,
-      execute: async (input) => grep(root, input),
-    });
-  }
-
-  return tools;
+  const out: ToolSet = {};
+  if (list_dir) out.list_dir = list_dir as ToolSet[string];
+  if (read_file) out.read_file = read_file as ToolSet[string];
+  if (grepTool) out.grep = grepTool as ToolSet[string];
+  return out;
 }
 
 // Re-exported zod input schemas so tests can validate without depending on `ai`.
