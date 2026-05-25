@@ -33,6 +33,15 @@ export interface DirEntry {
 }
 
 export function listDir(root: string, input: ListDirInput): { path: string; entries: DirEntry[] } {
+  // Reject targets whose path includes a skip-listed segment. Without this
+  // check, a caller could pass `{path: "node_modules"}` and enumerate the
+  // contents — defeating the skip list and burning tokens on transitive deps.
+  const segments = input.path.split(/[\\/]+/).filter(Boolean);
+  for (const seg of segments) {
+    if (DEFAULT_SKIP.has(seg)) {
+      throw new Error(`Path contains a skip-listed segment ("${seg}"): ${input.path}`);
+    }
+  }
   const target = resolveSafe(root, input.path);
   const stat = fs.statSync(target);
   if (!stat.isDirectory()) {
@@ -142,10 +151,10 @@ function grepWithRipgrep(
   ];
   const r = spawnSync("rg", args, { encoding: "utf8", maxBuffer: 10 * 1024 * 1024 });
   const hits: GrepHit[] = [];
+  let truncated = false;
   if (r.stdout) {
     for (const line of r.stdout.split("\n")) {
       if (!line) continue;
-      // rg output: <abs-path>:<line>:<preview>
       const firstColon = line.indexOf(":");
       const secondColon = line.indexOf(":", firstColon + 1);
       if (firstColon === -1 || secondColon === -1) continue;
@@ -153,17 +162,19 @@ function grepWithRipgrep(
       const lineNum = Number(line.slice(firstColon + 1, secondColon));
       const preview = line.slice(secondColon + 1);
       const rel = path.relative(realRoot, filePath);
-      // skip anything that landed outside the real root (shouldn't happen but defensive)
       if (rel.startsWith("..")) continue;
+      if (hits.length >= input.maxResults) {
+        truncated = true;
+        break;
+      }
       hits.push({
         path: rel || ".",
         line: lineNum,
         preview: preview.slice(0, 300),
       });
-      if (hits.length >= input.maxResults) break;
     }
   }
-  return { hits, truncated: hits.length >= input.maxResults };
+  return { hits, truncated };
 }
 
 function grepWithJs(
@@ -172,6 +183,7 @@ function grepWithJs(
   input: GrepInput,
 ): { hits: GrepHit[]; truncated: boolean } {
   const hits: GrepHit[] = [];
+  let truncated = false;
   const needle = input.caseSensitive ? input.query : input.query.toLowerCase();
 
   function walk(dir: string): boolean {
@@ -198,12 +210,15 @@ function grepWithJs(
         for (let i = 0; i < lines.length; i++) {
           const hay = input.caseSensitive ? lines[i] : lines[i].toLowerCase();
           if (hay.indexOf(needle) !== -1) {
+            if (hits.length >= input.maxResults) {
+              truncated = true;
+              return true;
+            }
             hits.push({
               path: path.relative(root, full),
               line: i + 1,
               preview: lines[i].slice(0, 300),
             });
-            if (hits.length >= input.maxResults) return true;
           }
         }
       }
@@ -220,5 +235,5 @@ function grepWithJs(
   if (stat.isDirectory()) walk(target);
   else if (stat.isFile()) walk(path.dirname(target));
 
-  return { hits, truncated: hits.length >= input.maxResults };
+  return { hits, truncated };
 }

@@ -14,7 +14,9 @@ export const maxDuration = 300;
 const BodySchema = z.object({
   projectId: z.string().min(1),
   mode: ChatModeSchema,
-  messages: z.array(z.any()),
+  // Cap message-array length so a malicious or buggy caller can't drive
+  // unbounded LLM cost. 200 turns is comfortably above any real session.
+  messages: z.array(z.any()).max(200),
 });
 
 export async function POST(req: Request) {
