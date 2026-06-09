@@ -50,9 +50,13 @@ describe("unresolvedCitedPaths", () => {
     expect(unresolvedCitedPaths(root, md)).toEqual([]);
   });
 
-  it("reports a genuine hallucination (no such file anywhere)", () => {
-    const md = "See WeeklyCommitController.java for the controller.";
-    expect(unresolvedCitedPaths(root, md)).toEqual(["WeeklyCommitController.java"]);
+  it("reports a genuine hallucination (multi-segment path, no such file anywhere)", () => {
+    const md = "See apps/wc-api/src/FakeController.java for the controller.";
+    expect(unresolvedCitedPaths(root, md)).toEqual(["apps/wc-api/src/FakeController.java"]);
+  });
+
+  it("does NOT report a bare unresolved filename (treated as external/generated)", () => {
+    expect(unresolvedCitedPaths(root, "loads remoteEntry.js at runtime")).toEqual([]);
   });
 
   it("does not exclude a real dotfile that resolves", () => {
@@ -69,8 +73,8 @@ describe("unresolvedCitedPaths", () => {
     expect(unresolvedCitedPaths(root, "alternatives like Vite/CRA/Next.js")).toEqual([]);
   });
 
-  it("still reports a genuine invented repo file alongside external/prose noise", () => {
-    const md = "uses react.development.js but see FakeController.java";
-    expect(unresolvedCitedPaths(root, md)).toEqual(["FakeController.java"]);
+  it("still reports a genuine invented multi-segment path alongside external/prose noise", () => {
+    const md = "uses react.development.js but see apps/wc-api/src/FakeController.java";
+    expect(unresolvedCitedPaths(root, md)).toEqual(["apps/wc-api/src/FakeController.java"]);
   });
 });

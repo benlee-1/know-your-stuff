@@ -58,6 +58,11 @@ function isExternalOrProse(token: string): boolean {
  * basename exists anywhere in the repo (bare-filename citations are real, just
  * imprecise). External/prose tokens that fail resolution are excluded, not
  * reported.
+ *
+ * Only MULTI-SEGMENT paths (containing "/") that remain unresolved are reported
+ * as likely hallucinations. Bare unresolved filenames (e.g. `remoteEntry.js`,
+ * `react.development.js`) are treated as external/generated artifacts — they
+ * make no in-repo-path claim and are non-blocking.
  */
 export function unresolvedCitedPaths(root: string, markdown: string): string[] {
   const index = buildBasenameIndex(root);
@@ -67,6 +72,9 @@ export function unresolvedCitedPaths(root: string, markdown: string): string[] {
     const base = token.split("/").pop() ?? token;
     if (index.has(base)) continue;
     if (isExternalOrProse(token)) continue;
+    // Only report multi-segment paths — a bare unresolved filename is likely an
+    // external/generated artifact, not a checkable in-repo hallucination.
+    if (!token.includes("/")) continue;
     missing.push(token);
   }
   return missing;
