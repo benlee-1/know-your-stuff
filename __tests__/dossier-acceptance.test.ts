@@ -11,22 +11,11 @@ import { buildDossierSectionPrompt } from "@/lib/prompts/dossier";
 import { makeCodebaseTools } from "@/lib/codebase-tools-ai";
 import { getModel } from "@/lib/ai";
 import { generateText } from "ai";
+import { citedPaths } from "@/lib/cited-paths";
 
 const LIVE = process.env.KYS_LIVE === "1";
 const TARGET =
   process.env.KYS_TARGET ?? path.join(os.homedir(), "code", "weekly-commit-module");
-
-// Extract `path/like/this.ext` or `path/like/this.ext:123` tokens from prose.
-function citedPaths(markdown: string): string[] {
-  const re = /(?:^|[\s(`"'])([\w./-]+\.[A-Za-z0-9]+)(?::\d+)?/g;
-  const out = new Set<string>();
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(markdown))) {
-    const p = m[1];
-    if (p.includes("/") || p.startsWith(".")) out.add(p); // skip bare "X.y" words
-  }
-  return [...out];
-}
 
 describe.skipIf(!LIVE)("dossier live acceptance (KYS_LIVE=1)", () => {
   it(
