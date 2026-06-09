@@ -28,33 +28,60 @@ export async function saveDossier(projectId: string, markdown: string): Promise<
   saveDossierSync(p.rootPath, markdown);
 }
 
-// One bounded agentic pass producing a single section's body. Same engine the
-// Technical chat mode uses: codebase tools + a step cap.
+// Two-phase agentic pass producing a single section's body.
+// Phase 1 explores the codebase with tools. Phase 2 forces a write with NO
+// tools registered — the model has nothing left to call so it must emit prose.
+// See docs/solutions/integration-issues/ai-sdk-experimental-output-blocks-custom-tools.md
 async function generateSectionBody(args: {
   rootPath: string;
   projectName: string;
   brief: string;
   section: DossierSection;
 }): Promise<string> {
+  const system = buildDossierSectionPrompt({
+    projectName: args.projectName,
+    sectionTitle: args.section.title,
+    sectionPrompt: args.section.prompt,
+    briefMarkdown: args.brief,
+  });
+  const userPrompt = `Explore the codebase to gather the evidence you need for the "${args.section.title}" section.`;
+
+  // Phase 1 — research with codebase tools.
   const tools = makeCodebaseTools(args.rootPath, {
     enable: { list_dir: true, read_file: true, grep: true },
   });
-  const res = await generateText({
+  const research = await generateText({
     model: getModel(),
-    system: buildDossierSectionPrompt({
-      projectName: args.projectName,
-      sectionTitle: args.section.title,
-      sectionPrompt: args.section.prompt,
-      briefMarkdown: args.brief,
-    }),
-    prompt: `Write the "${args.section.title}" section now.`,
+    system,
+    prompt: userPrompt,
     tools,
     stopWhen: ({ steps }) => steps.length >= 20,
   });
-  const text = res.text.trim();
+
+  // If Phase 1 already ended by writing the section, use it.
+  const phase1 = research.text.trim();
+  if (isUsableSectionText(phase1)) return phase1;
+
+  // Phase 2 — force the write with NO tools, replaying the gathered context.
+  // With no tools registered the model cannot call anything, so it must emit
+  // the section body as text.
+  const final = await generateText({
+    model: getModel(),
+    system,
+    messages: [
+      { role: "user", content: userPrompt },
+      ...research.response.messages,
+      {
+        role: "user",
+        content: `Now write the "${args.section.title}" section body in Markdown, using only the evidence you gathered above. Output ONLY the body — no narration about your process, no headers, no tool calls. If evidence is missing for part of it, write "not demonstrated in this repo".`,
+      },
+    ],
+  });
+
+  const text = final.text.trim();
   if (!isUsableSectionText(text)) {
     throw new Error(
-      `Section "${args.section.title}" produced no text (finishReason=${res.finishReason}, steps=${res.steps.length}). The model used its whole step budget on tool calls before writing.`,
+      `Section "${args.section.title}" produced no text after two phases (phase2 finishReason=${final.finishReason}).`,
     );
   }
   return text;
