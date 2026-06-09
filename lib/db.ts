@@ -92,6 +92,22 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       );
     `,
   },
+  {
+    name: "003_drill_sessions",
+    sql: `
+      CREATE TABLE drill_sessions (
+        id             TEXT PRIMARY KEY,
+        projectId      TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        sectionId      TEXT NOT NULL,
+        transcriptJson TEXT NOT NULL,
+        score          REAL NOT NULL,
+        strengthsJson  TEXT NOT NULL,
+        weaknessesJson TEXT NOT NULL,
+        createdAt      INTEGER NOT NULL
+      );
+      CREATE INDEX idx_drills_project ON drill_sessions(projectId, createdAt);
+    `,
+  },
 ];
 
 function runMigrations(db: Db) {
