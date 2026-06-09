@@ -131,6 +131,24 @@ const MIGRATIONS: { name: string; sql: string }[] = [
     name: "005_teachback_mastered_points",
     sql: `ALTER TABLE teachback_sessions ADD COLUMN masteredPointsJson TEXT NOT NULL DEFAULT '[]';`,
   },
+  {
+    name: "006_flashcards",
+    sql: `
+      CREATE TABLE flashcards (
+        id           TEXT PRIMARY KEY,
+        projectId    TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        sectionId    TEXT NOT NULL,
+        front        TEXT NOT NULL,
+        back         TEXT NOT NULL,
+        ease         REAL NOT NULL,
+        intervalDays REAL NOT NULL,
+        reps         INTEGER NOT NULL,
+        dueAt        INTEGER NOT NULL,
+        createdAt    INTEGER NOT NULL
+      );
+      CREATE INDEX idx_flashcards_due ON flashcards(projectId, dueAt);
+    `,
+  },
 ];
 
 function runMigrations(db: Db) {
