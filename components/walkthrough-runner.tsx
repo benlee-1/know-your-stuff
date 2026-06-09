@@ -38,12 +38,17 @@ export function WalkthroughRunner({
   const [pending, startTransition] = useTransition();
 
   const passedIds = new Set(state.progress.filter((p) => p.passed).map((p) => p.sectionId));
+
+  const isDone = (sectionId: string): boolean => {
+    const row = state.progress.find((p) => p.sectionId === sectionId);
+    return !!row && (row.passed || row.attempts >= 2);
+  };
+
   const section = state.sections.find((s) => s.id === currentId) ?? null;
 
   function statusGlyph(sectionId: string): string {
     if (passedIds.has(sectionId)) return "✓";
-    const row = state.progress.find((p) => p.sectionId === sectionId);
-    if (row) return "~";
+    if (isDone(sectionId)) return "~"; // completed with reveal (attempts>=2, not passed)
     if (sectionId === currentId) return "▸";
     return "○";
   }
@@ -112,8 +117,7 @@ export function WalkthroughRunner({
     if (phase.kind !== "feedback") return;
     if (phase.advance) {
       const order = state.sections.map((s) => s.id);
-      const passedNow = new Set(state.progress.filter((p) => p.passed).map((p) => p.sectionId));
-      const next = order.find((id) => id !== currentId && !passedNow.has(id)) ?? null;
+      const next = order.find((id) => id !== currentId && !isDone(id)) ?? null;
       setCurrentId(next);
       setAsked([]);
       setPhase({ kind: "idle" });

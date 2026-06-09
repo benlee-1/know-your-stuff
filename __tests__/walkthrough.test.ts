@@ -83,15 +83,28 @@ describe("computeCurrentSectionId", () => {
   it("first section when no progress", () => {
     expect(computeCurrentSectionId([])).toBe(DOSSIER_SECTIONS[0].id);
   });
-  it("first not-passed section in canonical order", () => {
+  it("skips a passed section", () => {
     const progress = [
-      { sectionId: DOSSIER_SECTIONS[0].id, passed: true },
-      { sectionId: DOSSIER_SECTIONS[1].id, passed: false },
+      { sectionId: DOSSIER_SECTIONS[0].id, passed: true, attempts: 1 },
+      { sectionId: DOSSIER_SECTIONS[1].id, passed: false, attempts: 1 },
     ] as any;
     expect(computeCurrentSectionId(progress)).toBe(DOSSIER_SECTIONS[1].id);
   });
-  it("null when every section is passed", () => {
-    const progress = DOSSIER_SECTIONS.map((s) => ({ sectionId: s.id, passed: true })) as any;
+  it("skips a completed-with-reveal section (attempts>=2, not passed) — does not loop back", () => {
+    const progress = [
+      { sectionId: DOSSIER_SECTIONS[0].id, passed: false, attempts: 2 }, // done, not passed
+      { sectionId: DOSSIER_SECTIONS[1].id, passed: true, attempts: 1 },  // done, passed
+    ] as any;
+    expect(computeCurrentSectionId(progress)).toBe(DOSSIER_SECTIONS[2].id);
+  });
+  it("stays on a section that is mid-reveal (attempts===1, not passed)", () => {
+    const progress = [
+      { sectionId: DOSSIER_SECTIONS[0].id, passed: false, attempts: 1 },
+    ] as any;
+    expect(computeCurrentSectionId(progress)).toBe(DOSSIER_SECTIONS[0].id);
+  });
+  it("null when every section is done", () => {
+    const progress = DOSSIER_SECTIONS.map((s) => ({ sectionId: s.id, passed: true, attempts: 1 })) as any;
     expect(computeCurrentSectionId(progress)).toBeNull();
   });
 });
