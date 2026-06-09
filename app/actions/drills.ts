@@ -12,7 +12,7 @@ import {
   buildFollowupPrompt,
   buildScorePrompt,
 } from "@/lib/prompts/drills";
-import { insertDrillSession, listDrillSessions, type DrillTurn } from "@/lib/drills";
+import { DRILL_TURNS, insertDrillSession, listDrillSessions, type DrillTurn } from "@/lib/drills";
 import type { DrillSession } from "@/lib/schema";
 
 function sectionBodyOrThrow(
@@ -90,4 +90,31 @@ export async function listDrills(projectId: string): Promise<DrillSession[]> {
   const p = getProjectRaw(projectId);
   if (!p) throw new Error("Project not found");
   return listDrillSessions(projectId);
+}
+
+export interface DrillsSectionView {
+  id: string;
+  title: string;
+  hasBody: boolean;
+}
+export interface DrillsState {
+  hasDossier: boolean;
+  sections: DrillsSectionView[];
+  past: DrillSession[];
+  turns: number;
+}
+
+export async function loadDrillsState(projectId: string): Promise<DrillsState> {
+  const p = getProjectRaw(projectId);
+  if (!p) throw new Error("Project not found");
+  const md = loadDossierSync(p.rootPath);
+  const hasDossier = md.trim().length > 0;
+  const parsed = parseDossierSections(md);
+  const byTitle = new Map(parsed.map((s) => [s.title, s.body]));
+  const sections = DOSSIER_SECTIONS.map((s) => ({
+    id: s.id,
+    title: s.title,
+    hasBody: (byTitle.get(s.title) ?? "").trim().length > 0,
+  }));
+  return { hasDossier, sections, past: listDrillSessions(projectId), turns: DRILL_TURNS };
 }
