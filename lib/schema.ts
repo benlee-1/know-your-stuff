@@ -44,3 +44,14 @@ export const QuizAttemptSchema = z.object({
   createdAt: z.number(),
 });
 export type QuizAttempt = z.infer<typeof QuizAttemptSchema>;
+
+export const WalkthroughProgressSchema = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  sectionId: z.string(),
+  passed: z.boolean(),
+  bestScore: z.number().min(0).max(1),
+  attempts: z.number().int().min(0),
+  updatedAt: z.number(),
+});
+export type WalkthroughProgress = z.infer<typeof WalkthroughProgressSchema>;
