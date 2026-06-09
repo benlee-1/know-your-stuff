@@ -67,3 +67,18 @@ export const DrillSessionSchema = z.object({
   createdAt: z.number(),
 });
 export type DrillSession = z.infer<typeof DrillSessionSchema>;
+
+export const TeachbackSessionSchema = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  sectionId: z.string(),
+  explanation: z.string(),
+  coverageScore: z.number().min(0).max(1),
+  gapsJson: z.string(),
+  socraticQuestion: z.string(),
+  response: z.string(),
+  summary: z.string(),
+  stillMissingJson: z.string(),
+  createdAt: z.number(),
+});
+export type TeachbackSession = z.infer<typeof TeachbackSessionSchema>;
