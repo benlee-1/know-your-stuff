@@ -77,6 +77,21 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       );
     `,
   },
+  {
+    name: "002_walkthrough_progress",
+    sql: `
+      CREATE TABLE walkthrough_progress (
+        id         TEXT PRIMARY KEY,
+        projectId  TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        sectionId  TEXT NOT NULL,
+        passed     INTEGER NOT NULL,
+        bestScore  REAL NOT NULL,
+        attempts   INTEGER NOT NULL,
+        updatedAt  INTEGER NOT NULL,
+        UNIQUE(projectId, sectionId)
+      );
+    `,
+  },
 ];
 
 function runMigrations(db: Db) {
