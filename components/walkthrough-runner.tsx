@@ -115,6 +115,7 @@ export function WalkthroughRunner({
 
   function continueAfterFeedback() {
     if (phase.kind !== "feedback") return;
+    setError(null);
     if (phase.advance) {
       const order = state.sections.map((s) => s.id);
       const next = order.find((id) => id !== currentId && !isDone(id)) ?? null;
