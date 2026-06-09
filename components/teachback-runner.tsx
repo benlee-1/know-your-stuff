@@ -87,10 +87,17 @@ export function TeachbackRunner({
 
       {closing ? (
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold">
-            Teach-back complete — {Math.round(closing.coverageScore * 100)}% coverage
-          </h2>
+          <h2 className="text-lg font-semibold">Teach-back complete</h2>
+          <p className="text-sm text-muted-foreground">Explanation coverage: {Math.round(closing.coverageScore * 100)}%</p>
           <p className="text-sm text-muted-foreground">{closing.summary}</p>
+          {JSON.parse(closing.masteredPointsJson || "[]").length > 0 && (
+            <div>
+              <p className="text-xs uppercase text-muted-foreground">What you've got</p>
+              <ul className="list-disc pl-5 text-sm">
+                {(JSON.parse(closing.masteredPointsJson) as string[]).map((m, i) => <li key={i}>{m}</li>)}
+              </ul>
+            </div>
+          )}
           {JSON.parse(closing.stillMissingJson || "[]").length > 0 && (
             <div>
               <p className="text-xs uppercase text-muted-foreground">Still to review</p>

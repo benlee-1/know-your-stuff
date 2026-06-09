@@ -108,5 +108,6 @@ export async function submitSocraticResponse(args: {
     response: trimmed,
     summary: closing.summary,
     stillMissing: closing.stillMissing,
+    masteredPoints: closing.masteredPoints,
   });
 }

@@ -12,6 +12,7 @@ export function insertTeachbackSession(args: {
   response: string;
   summary: string;
   stillMissing: string[];
+  masteredPoints: string[];
 }): TeachbackSession {
   const row: TeachbackSession = {
     id: randomUUID(),
@@ -24,14 +25,15 @@ export function insertTeachbackSession(args: {
     response: args.response,
     summary: args.summary,
     stillMissingJson: JSON.stringify(args.stillMissing ?? []),
+    masteredPointsJson: JSON.stringify(args.masteredPoints ?? []),
     createdAt: Date.now(),
   };
   getDb()
     .prepare(
-      `INSERT INTO teachback_sessions (id, projectId, sectionId, explanation, coverageScore, gapsJson, socraticQuestion, response, summary, stillMissingJson, createdAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO teachback_sessions (id, projectId, sectionId, explanation, coverageScore, gapsJson, socraticQuestion, response, summary, stillMissingJson, masteredPointsJson, createdAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(row.id, row.projectId, row.sectionId, row.explanation, row.coverageScore, row.gapsJson, row.socraticQuestion, row.response, row.summary, row.stillMissingJson, row.createdAt);
+    .run(row.id, row.projectId, row.sectionId, row.explanation, row.coverageScore, row.gapsJson, row.socraticQuestion, row.response, row.summary, row.stillMissingJson, row.masteredPointsJson, row.createdAt);
   return row;
 }
 

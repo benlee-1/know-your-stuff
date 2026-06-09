@@ -127,6 +127,10 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       CREATE INDEX idx_teachback_project ON teachback_sessions(projectId, createdAt);
     `,
   },
+  {
+    name: "005_teachback_mastered_points",
+    sql: `ALTER TABLE teachback_sessions ADD COLUMN masteredPointsJson TEXT NOT NULL DEFAULT '[]';`,
+  },
 ];
 
 function runMigrations(db: Db) {

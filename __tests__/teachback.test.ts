@@ -25,11 +25,12 @@ describe("teachback session storage", () => {
       projectId, sectionId: "architecture", explanation: "two apps",
       coverageScore: 0.6, gaps: ["auth"], socraticQuestion: "how does auth work?",
       response: "auth0", summary: "decent", stillMissing: ["flyway"],
+      masteredPoints: ["entities"],
     });
     insertTeachbackSession({
       projectId, sectionId: "data-model", explanation: "entities",
       coverageScore: 0.9, gaps: [], socraticQuestion: "q2", response: "r2",
-      summary: "great", stillMissing: [],
+      summary: "great", stillMissing: [], masteredPoints: [],
     });
     const rows = listTeachbackSessions(projectId);
     expect(rows).toHaveLength(2);
@@ -37,5 +38,6 @@ describe("teachback session storage", () => {
     expect(JSON.parse(rows[1].gapsJson)).toEqual(["auth"]);
     expect(JSON.parse(rows[1].stillMissingJson)).toEqual(["flyway"]);
     expect(rows[1].coverageScore).toBe(0.6);
+    expect(JSON.parse(rows[1].masteredPointsJson)).toEqual(["entities"]);
   });
 });

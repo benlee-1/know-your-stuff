@@ -79,6 +79,7 @@ export const TeachbackSessionSchema = z.object({
   response: z.string(),
   summary: z.string(),
   stillMissingJson: z.string(),
+  masteredPointsJson: z.string(),
   createdAt: z.number(),
 });
 export type TeachbackSession = z.infer<typeof TeachbackSessionSchema>;
