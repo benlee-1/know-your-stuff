@@ -37,8 +37,11 @@ describe("dossier storage", () => {
   it("saveDossierSync refuses to write through a pre-existing .know-your-stuff symlink", () => {
     const target = fs.mkdtempSync(path.join(os.tmpdir(), "kys-target-"));
     fs.symlinkSync(target, path.join(root, ".know-your-stuff"));
-    expect(() => saveDossierSync(root, "x")).toThrow(/symlink/i);
-    fs.rmSync(target, { recursive: true, force: true });
+    try {
+      expect(() => saveDossierSync(root, "x")).toThrow(/symlink/i);
+    } finally {
+      fs.rmSync(target, { recursive: true, force: true });
+    }
   });
 });
 
