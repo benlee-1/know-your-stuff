@@ -14,8 +14,15 @@ describe("citedPaths", () => {
   });
 
   it("extracts paths wrapped in markdown emphasis", () => {
-    expect(citedPaths("**src/main/App.java** and _config.yml_")).toEqual(
-      expect.arrayContaining(["src/main/App.java", "config.yml"]),
+    expect(citedPaths("see **src/main/App.java** in bold")).toContain(
+      "src/main/App.java",
+    );
+  });
+
+  it("keeps underscores in paths (does not mangle __tests__ or _app)", () => {
+    const got = citedPaths("covered in __tests__/dossier.test.ts and pages/_app.tsx");
+    expect(got).toEqual(
+      expect.arrayContaining(["__tests__/dossier.test.ts", "pages/_app.tsx"]),
     );
   });
 

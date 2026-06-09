@@ -13,7 +13,10 @@ const CODE_EXT =
 export function citedPaths(markdown: string): string[] {
   const out = new Set<string>();
   for (const raw of markdown.match(/[\w./-]+/g) ?? []) {
-    const p = raw.replace(/^_+/, "").replace(/[_./-]+$/, ""); // strip markdown emphasis underscores + trailing punctuation
+    // Strip only trailing sentence punctuation / bold markers. Underscores are
+    // valid path chars (e.g. `__tests__/foo.ts`, `_app.tsx`) so we never strip
+    // them — mangling those is worse than missing a rare italic-wrapped path.
+    const p = raw.replace(/[./-]+$/, "");
     if (CODE_EXT.test(p)) out.add(p);
   }
   return [...out];
