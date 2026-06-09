@@ -85,6 +85,10 @@ export function insertCards(args: {
   return out;
 }
 
+export function deleteCardsForSection(projectId: string, sectionId: string): void {
+  getDb().prepare("DELETE FROM flashcards WHERE projectId = ? AND sectionId = ?").run(projectId, sectionId);
+}
+
 export function listCards(projectId: string): Flashcard[] {
   const rows = getDb().prepare("SELECT * FROM flashcards WHERE projectId = ? ORDER BY createdAt ASC").all(projectId) as Flashcard[];
   return toPlainArray(rows);

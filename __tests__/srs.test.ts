@@ -6,7 +6,7 @@ import os from "node:os";
 import { beforeEach, afterEach } from "vitest";
 import { _resetDbForTests } from "@/lib/db";
 import { addProjectRaw } from "@/lib/projects";
-import { insertCards, listCards, listDueCards, updateCardSchedule } from "@/lib/srs";
+import { insertCards, listCards, listDueCards, updateCardSchedule, deleteCardsForSection } from "@/lib/srs";
 
 const DAY = 86_400_000;
 
@@ -116,6 +116,15 @@ describe("flashcard storage", () => {
     const due = listDueCards(projectId, 200);
     expect(due).toHaveLength(1);
     expect(due[0].front).toBe("due");
+  });
+
+  it("deleteCardsForSection removes only that section's cards", () => {
+    insertCards({ projectId, sectionId: "a", cards: [{ front: "a1", back: "x" }], now: 100 });
+    insertCards({ projectId, sectionId: "b", cards: [{ front: "b1", back: "y" }], now: 100 });
+    deleteCardsForSection(projectId, "a");
+    const rows = listCards(projectId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].sectionId).toBe("b");
   });
 
   it("updateCardSchedule persists the new schedule", () => {

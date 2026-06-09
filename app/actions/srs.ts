@@ -11,6 +11,7 @@ import {
   listCards,
   listDueCards,
   updateCardSchedule,
+  deleteCardsForSection,
   scheduleCard,
   ratingToQuality,
   isDue,
@@ -88,6 +89,7 @@ export async function generateCards(
     .filter((c) => c.front.trim().length > 0 && c.back.trim().length > 0)
     .slice(0, n);
   if (cards.length === 0) throw new Error("No cards were generated — try again.");
+  deleteCardsForSection(projectId, sectionId);
   return insertCards({ projectId, sectionId, cards, now: Date.now() });
 }
 
