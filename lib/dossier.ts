@@ -91,3 +91,67 @@ export const DOSSIER_SECTIONS: DossierSection[] = [
       "What can fail (external calls, bad input, partial writes) and how is it handled (retries, validation, transactions, timeouts)? Cite the handling code. If a failure mode is unaddressed, say so explicitly.",
   },
 ];
+
+export interface DossierSectionContent {
+  title: string;
+  body: string;
+}
+
+export function assembleDossier(sections: DossierSectionContent[]): string {
+  return sections.map((s) => `# ${s.title}\n\n${s.body}`).join("\n\n");
+}
+
+export function parseDossierSections(markdown: string): DossierSectionContent[] {
+  const lines = markdown.split("\n");
+  const out: DossierSectionContent[] = [];
+  let title: string | null = null;
+  let body: string[] = [];
+  const flush = () => {
+    if (title !== null) out.push({ title, body: body.join("\n").trim() });
+  };
+  for (const line of lines) {
+    const m = /^# (.+)$/.exec(line);
+    if (m) {
+      flush();
+      title = m[1].trim();
+      body = [];
+    } else if (title !== null) {
+      body.push(line);
+    }
+  }
+  flush();
+  return out;
+}
+
+export function upsertSection(
+  markdown: string,
+  title: string,
+  newBody: string,
+): string {
+  const existing = parseDossierSections(markdown);
+  if (existing.some((s) => s.title === title)) {
+    return assembleDossier(
+      existing.map((s) => (s.title === title ? { title, body: newBody } : s)),
+    );
+  }
+  // Insert in canonical order. Build the desired title order from
+  // DOSSIER_SECTIONS, keep only titles that are present-or-being-inserted.
+  const order = DOSSIER_SECTIONS.map((s) => s.title);
+  const byTitle = new Map(existing.map((s) => [s.title, s.body]));
+  byTitle.set(title, newBody);
+  const merged: DossierSectionContent[] = [];
+  for (const t of order) {
+    if (byTitle.has(t)) {
+      merged.push({ title: t, body: byTitle.get(t)! });
+      byTitle.delete(t);
+    }
+  }
+  // Any titles not in canonical order (e.g. hand-added) keep their tail position.
+  for (const s of existing) {
+    if (byTitle.has(s.title)) {
+      merged.push({ title: s.title, body: byTitle.get(s.title)! });
+      byTitle.delete(s.title);
+    }
+  }
+  return assembleDossier(merged);
+}

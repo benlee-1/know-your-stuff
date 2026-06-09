@@ -63,3 +63,52 @@ describe("DOSSIER_SECTIONS", () => {
     }
   });
 });
+
+import {
+  assembleDossier,
+  parseDossierSections,
+  upsertSection,
+} from "@/lib/dossier";
+
+describe("assembleDossier", () => {
+  it("joins sections under '# Title' headers", () => {
+    const md = assembleDossier([
+      { title: "Problem & Users", body: "It helps X." },
+      { title: "Data Model", body: "One table." },
+    ]);
+    expect(md).toBe(
+      "# Problem & Users\n\nIt helps X.\n\n# Data Model\n\nOne table.",
+    );
+  });
+});
+
+describe("parseDossierSections", () => {
+  it("splits a dossier back into title/body pairs", () => {
+    const md = "# Problem & Users\n\nIt helps X.\n\n# Data Model\n\nOne table.";
+    expect(parseDossierSections(md)).toEqual([
+      { title: "Problem & Users", body: "It helps X." },
+      { title: "Data Model", body: "One table." },
+    ]);
+  });
+
+  it("ignores content before the first header", () => {
+    expect(parseDossierSections("preamble\n\n# A\n\nbody")).toEqual([
+      { title: "A", body: "body" },
+    ]);
+  });
+});
+
+describe("upsertSection", () => {
+  it("replaces an existing section's body in place", () => {
+    const md = "# Problem & Users\n\nold\n\n# Data Model\n\nkeep";
+    const out = upsertSection(md, "Problem & Users", "new");
+    expect(out).toBe("# Problem & Users\n\nnew\n\n# Data Model\n\nkeep");
+  });
+
+  it("inserts a missing section in canonical DOSSIER_SECTIONS order", () => {
+    // Data Model exists; insert Requirements, which canonically precedes it.
+    const md = "# Data Model\n\nkeep";
+    const out = upsertSection(md, "Requirements", "req body");
+    expect(out).toBe("# Requirements\n\nreq body\n\n# Data Model\n\nkeep");
+  });
+});
