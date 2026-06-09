@@ -67,6 +67,12 @@ export default async function ChatPage({
             Teach-back
           </Link>
           <Link
+            href={`/chat/${projectId}/cards`}
+            className="text-sm text-muted-foreground hover:underline"
+          >
+            Cards
+          </Link>
+          <Link
             href={`/chat/${projectId}/brief`}
             className="text-sm text-muted-foreground hover:underline"
           >
