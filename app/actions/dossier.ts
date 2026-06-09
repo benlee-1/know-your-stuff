@@ -66,14 +66,22 @@ export async function generateDossier(
       generateSectionBody({ rootPath: p.rootPath, projectName: p.name, brief, section }),
   );
 
-  // If every section failed (e.g. bad API key / outage), don't clobber an
-  // existing dossier with an empty file — return the prior content unchanged.
-  if (results.length === 0) {
-    return { markdown: loadDossierSync(p.rootPath), failedSectionIds };
+  if (failedSectionIds.length === 0) {
+    const markdown = assembleDossier(results);
+    saveDossierSync(p.rootPath, markdown);
+    return { markdown, failedSectionIds };
   }
 
-  const markdown = assembleDossier(results);
-  saveDossierSync(p.rootPath, markdown);
+  // Partial/total failure: never clobber an existing dossier. Merge only the
+  // sections that succeeded into the current file; failed sections keep their
+  // prior content. (No existing file → a partial dossier of the successes.)
+  let markdown = loadDossierSync(p.rootPath);
+  for (const r of results) {
+    markdown = upsertSection(markdown, r.title, r.body);
+  }
+  if (results.length > 0) {
+    saveDossierSync(p.rootPath, markdown);
+  }
   return { markdown, failedSectionIds };
 }
 
