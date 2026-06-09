@@ -86,12 +86,6 @@ export async function finishDrill(
   });
 }
 
-export async function listDrills(projectId: string): Promise<DrillSession[]> {
-  const p = getProjectRaw(projectId);
-  if (!p) throw new Error("Project not found");
-  return listDrillSessions(projectId);
-}
-
 export interface DrillsSectionView {
   id: string;
   title: string;

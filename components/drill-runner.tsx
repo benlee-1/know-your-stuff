@@ -56,19 +56,25 @@ export function DrillRunner({
 
   function submitAnswer() {
     if (!question || !answer.trim()) return;
-    const nextTranscript = [...transcript, { question, answer: answer.trim() }];
+    const askedQuestion = question;
+    const nextTranscript = [...transcript, { question: askedQuestion, answer: answer.trim() }];
     setError(null);
-    setTranscript(nextTranscript);
-    setAnswer("");
-    setQuestion(null);
+    // Do NOT mutate state before the await: if the action throws, the user's
+    // current question + typed answer must survive so they can retry. State is
+    // committed only on success (mirrors walkthrough-runner).
     startTransition(async () => {
       try {
         if (nextTranscript.length >= turns) {
           const session = await finishDrill(projectId, sectionId, nextTranscript);
+          setTranscript(nextTranscript);
+          setQuestion(null);
+          setAnswer("");
           setScored(session);
           setPast((p) => [session, ...p]);
         } else {
           const { question: q } = await nextDrillQuestion(projectId, sectionId, nextTranscript);
+          setTranscript(nextTranscript);
+          setAnswer("");
           setQuestion(q);
         }
       } catch (e) {
