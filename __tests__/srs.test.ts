@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { DEFAULT_EASE, ratingToQuality, scheduleCard, isDue } from "@/lib/srs";
+import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
+import { beforeEach, afterEach } from "vitest";
+import { _resetDbForTests } from "@/lib/db";
+import { addProjectRaw } from "@/lib/projects";
+import { insertCards, listCards, listDueCards, updateCardSchedule } from "@/lib/srs";
 
 const DAY = 86_400_000;
 
@@ -71,4 +78,51 @@ describe("isDue", () => {
 
 describe("DEFAULT_EASE", () => {
   it("is 2.5", () => expect(DEFAULT_EASE).toBe(2.5));
+});
+
+describe("flashcard storage", () => {
+  let dbPath: string; let projectId: string; let projectRoot: string;
+  beforeEach(() => {
+    dbPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "kys-srs-")), "db.sqlite");
+    process.env.KYS_DB_PATH = dbPath; _resetDbForTests();
+    projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kys-srs-proj-"));
+    projectId = addProjectRaw({ name: "p", rootPath: projectRoot }).id;
+  });
+  afterEach(() => {
+    _resetDbForTests(); delete process.env.KYS_DB_PATH;
+    fs.rmSync(path.dirname(dbPath), { recursive: true, force: true });
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+  });
+
+  it("inserts cards with default schedule (immediately due) and lists them", () => {
+    const now = 1_000_000;
+    const cards = insertCards({
+      projectId, sectionId: "architecture",
+      cards: [{ front: "Q1", back: "A1" }, { front: "Q2", back: "A2" }],
+      now,
+    });
+    expect(cards).toHaveLength(2);
+    expect(cards[0]).toMatchObject({ front: "Q1", back: "A1", ease: 2.5, intervalDays: 0, reps: 0, dueAt: now });
+    expect(listCards(projectId)).toHaveLength(2);
+  });
+
+  it("listDueCards returns only cards due at `now`, oldest-due first", () => {
+    insertCards({ projectId, sectionId: "a", cards: [{ front: "due", back: "x" }], now: 100 });
+    insertCards({ projectId, sectionId: "b", cards: [{ front: "later", back: "y" }], now: 100 });
+    // push the second card into the future
+    const all = listCards(projectId);
+    const later = all.find((c) => c.front === "later")!;
+    updateCardSchedule(later.id, { ease: 2.5, intervalDays: 6, reps: 2, dueAt: 999_999_999_999 });
+    const due = listDueCards(projectId, 200);
+    expect(due).toHaveLength(1);
+    expect(due[0].front).toBe("due");
+  });
+
+  it("updateCardSchedule persists the new schedule", () => {
+    insertCards({ projectId, sectionId: "a", cards: [{ front: "c", back: "d" }], now: 100 });
+    const card = listCards(projectId)[0];
+    updateCardSchedule(card.id, { ease: 2.6, intervalDays: 6, reps: 2, dueAt: 5000 });
+    const updated = listCards(projectId)[0];
+    expect(updated).toMatchObject({ ease: 2.6, intervalDays: 6, reps: 2, dueAt: 5000 });
+  });
 });

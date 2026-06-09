@@ -83,3 +83,17 @@ export const TeachbackSessionSchema = z.object({
   createdAt: z.number(),
 });
 export type TeachbackSession = z.infer<typeof TeachbackSessionSchema>;
+
+export const FlashcardSchema = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  sectionId: z.string(),
+  front: z.string(),
+  back: z.string(),
+  ease: z.number(),
+  intervalDays: z.number(),
+  reps: z.number().int(),
+  dueAt: z.number(),
+  createdAt: z.number(),
+});
+export type Flashcard = z.infer<typeof FlashcardSchema>;
