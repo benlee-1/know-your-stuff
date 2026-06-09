@@ -10,11 +10,10 @@ import {
   DOSSIER_SECTIONS,
   type DossierSection,
   assembleDossier,
-  loadDossierSync,
-  saveDossierSync,
   runDossierGeneration,
   upsertSection,
 } from "@/lib/dossier";
+import { loadDossierSync, saveDossierSync } from "@/lib/dossier-storage";
 
 export async function loadDossier(projectId: string): Promise<string> {
   const p = getProjectRaw(projectId);

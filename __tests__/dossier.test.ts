@@ -3,15 +3,13 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import {
-  dossierPath,
-  loadDossierSync,
-  saveDossierSync,
   DOSSIER_SECTIONS,
   assembleDossier,
   parseDossierSections,
   upsertSection,
   runDossierGeneration,
 } from "@/lib/dossier";
+import { dossierPath, loadDossierSync, saveDossierSync } from "@/lib/dossier-storage";
 
 let root: string;
 beforeEach(() => {
