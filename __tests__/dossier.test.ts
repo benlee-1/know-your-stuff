@@ -10,6 +10,7 @@ import {
   assembleDossier,
   parseDossierSections,
   upsertSection,
+  runDossierGeneration,
 } from "@/lib/dossier";
 
 let root: string;
@@ -149,5 +150,50 @@ describe("dossier round-trip", () => {
       { title: "Data Model", body: "```ts\nconst x = 1 // # not a header\n```" },
     ];
     expect(parseDossierSections(assembleDossier(sections))).toEqual(sections);
+  });
+});
+
+describe("runDossierGeneration", () => {
+  it("generates every section in order via the injected generator", async () => {
+    const sections = [
+      { id: "a", title: "A", prompt: "pa" },
+      { id: "b", title: "B", prompt: "pb" },
+    ];
+    const { results, failedSectionIds } = await runDossierGeneration(
+      sections,
+      async (s) => `body-${s.id}`,
+    );
+    expect(failedSectionIds).toEqual([]);
+    expect(results).toEqual([
+      { id: "a", title: "A", body: "body-a" },
+      { id: "b", title: "B", body: "body-b" },
+    ]);
+  });
+
+  it("skips a failing section and continues, recording its id", async () => {
+    const sections = [
+      { id: "a", title: "A", prompt: "pa" },
+      { id: "b", title: "B", prompt: "pb" },
+      { id: "c", title: "C", prompt: "pc" },
+    ];
+    const { results, failedSectionIds } = await runDossierGeneration(
+      sections,
+      async (s) => {
+        if (s.id === "b") throw new Error("429");
+        return `body-${s.id}`;
+      },
+    );
+    expect(failedSectionIds).toEqual(["b"]);
+    expect(results.map((r) => r.id)).toEqual(["a", "c"]);
+  });
+
+  it("reports progress through the optional onProgress callback", async () => {
+    const seen: string[] = [];
+    await runDossierGeneration(
+      [{ id: "a", title: "A", prompt: "pa" }],
+      async (s) => `body-${s.id}`,
+      (p) => seen.push(`${p.index + 1}/${p.total}:${p.id}:${p.status}`),
+    );
+    expect(seen).toContain("1/1:a:done");
   });
 });

@@ -163,3 +163,46 @@ export function upsertSection(
   }
   return assembleDossier(merged);
 }
+
+export interface DossierGenResult {
+  id: string;
+  title: string;
+  body: string;
+}
+
+export interface DossierProgress {
+  index: number;
+  total: number;
+  id: string;
+  title: string;
+  status: "start" | "done" | "failed";
+}
+
+/**
+ * Generate every section sequentially. A section whose generator throws is
+ * skipped (its id recorded in failedSectionIds) so a transient 429/5xx never
+ * aborts the whole run or leaves a half-written file. Callers assemble only the
+ * returned (successful) results. Sequential keeps per-call cost predictable.
+ */
+export async function runDossierGeneration(
+  sections: DossierSection[],
+  generateOne: (section: DossierSection) => Promise<string>,
+  onProgress?: (p: DossierProgress) => void,
+): Promise<{ results: DossierGenResult[]; failedSectionIds: string[] }> {
+  const results: DossierGenResult[] = [];
+  const failedSectionIds: string[] = [];
+  for (let index = 0; index < sections.length; index++) {
+    const s = sections[index];
+    const base = { index, total: sections.length, id: s.id, title: s.title };
+    onProgress?.({ ...base, status: "start" });
+    try {
+      const body = await generateOne(s);
+      results.push({ id: s.id, title: s.title, body });
+      onProgress?.({ ...base, status: "done" });
+    } catch {
+      failedSectionIds.push(s.id);
+      onProgress?.({ ...base, status: "failed" });
+    }
+  }
+  return { results, failedSectionIds };
+}
