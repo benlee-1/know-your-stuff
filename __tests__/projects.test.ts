@@ -9,6 +9,7 @@ import {
   deleteProjectRaw,
   setActiveProjectRaw,
   getProjectRaw,
+  expandHome,
 } from "@/lib/projects";
 
 let tmpDir: string;
@@ -26,7 +27,35 @@ afterEach(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
+describe("expandHome", () => {
+  it("expands a bare ~ to the home directory", () => {
+    expect(expandHome("~")).toBe(os.homedir());
+  });
+  it("expands a leading ~/ to a path under home", () => {
+    expect(expandHome("~/code/weekly-commit-module")).toBe(
+      path.join(os.homedir(), "code/weekly-commit-module"),
+    );
+  });
+  it("leaves absolute and relative paths untouched", () => {
+    expect(expandHome("/abs/path")).toBe("/abs/path");
+    expect(expandHome("relative/dir")).toBe("relative/dir");
+    expect(expandHome("~tilde-not-home")).toBe("~tilde-not-home");
+  });
+});
+
 describe("projects", () => {
+  it("adds a project via a ~-prefixed path (expanded to home)", () => {
+    // create a real dir under home so the existence check passes
+    const sub = fs.mkdtempSync(path.join(os.homedir(), ".kys-test-"));
+    try {
+      const rel = "~/" + path.basename(sub);
+      const p = addProjectRaw({ name: "tilde", rootPath: rel });
+      expect(p.rootPath).toBe(sub);
+    } finally {
+      fs.rmSync(sub, { recursive: true, force: true });
+    }
+  });
+
   it("adds a project with a valid directory path", () => {
     const p = addProjectRaw({ name: "acme", rootPath: tmpDir });
     expect(p.id).toBeTruthy();

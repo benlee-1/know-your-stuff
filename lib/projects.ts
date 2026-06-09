@@ -1,8 +1,20 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { getDb, toPlain, toPlainArray } from "./db";
 import type { Project } from "./schema";
+
+/**
+ * Expand a leading `~` to the user's home directory. The "absolute path" field
+ * invites `~/...`, which only a shell expands — `path.resolve` would otherwise
+ * join it onto cwd. Other inputs pass through untouched.
+ */
+export function expandHome(p: string): string {
+  if (p === "~") return os.homedir();
+  if (p.startsWith("~/")) return path.join(os.homedir(), p.slice(2));
+  return p;
+}
 
 export function listProjectsRaw(): Project[] {
   const rows = getDb()
@@ -20,7 +32,7 @@ export function getProjectRaw(id: string): Project | null {
 
 export function addProjectRaw(input: { name: string; rootPath: string }): Project {
   const name = input.name.trim();
-  const rootPath = path.resolve(input.rootPath.trim());
+  const rootPath = path.resolve(expandHome(input.rootPath.trim()));
 
   if (!name) throw new Error("Project name is required.");
 
