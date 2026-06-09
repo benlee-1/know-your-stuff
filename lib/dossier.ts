@@ -102,20 +102,28 @@ export function assembleDossier(sections: DossierSectionContent[]): string {
 }
 
 export function parseDossierSections(markdown: string): DossierSectionContent[] {
-  const lines = markdown.split("\n");
+  const lines = markdown.replace(/\r\n/g, "\n").split("\n");
   const out: DossierSectionContent[] = [];
   let title: string | null = null;
   let body: string[] = [];
+  let inFence = false;
   const flush = () => {
     if (title !== null) out.push({ title, body: body.join("\n").trim() });
   };
   for (const line of lines) {
-    const m = /^# (.+)$/.exec(line);
-    if (m) {
-      flush();
-      title = m[1].trim();
-      body = [];
-    } else if (title !== null) {
+    if (line.trimStart().startsWith("```")) {
+      inFence = !inFence;
+    }
+    if (!inFence) {
+      const m = /^# (.+)$/.exec(line);
+      if (m) {
+        flush();
+        title = m[1].trim();
+        body = [];
+        continue;
+      }
+    }
+    if (title !== null) {
       body.push(line);
     }
   }

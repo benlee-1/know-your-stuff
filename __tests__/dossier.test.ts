@@ -7,6 +7,9 @@ import {
   loadDossierSync,
   saveDossierSync,
   DOSSIER_SECTIONS,
+  assembleDossier,
+  parseDossierSections,
+  upsertSection,
 } from "@/lib/dossier";
 
 let root: string;
@@ -64,12 +67,6 @@ describe("DOSSIER_SECTIONS", () => {
   });
 });
 
-import {
-  assembleDossier,
-  parseDossierSections,
-  upsertSection,
-} from "@/lib/dossier";
-
 describe("assembleDossier", () => {
   it("joins sections under '# Title' headers", () => {
     const md = assembleDossier([
@@ -110,5 +107,47 @@ describe("upsertSection", () => {
     const md = "# Data Model\n\nkeep";
     const out = upsertSection(md, "Requirements", "req body");
     expect(out).toBe("# Requirements\n\nreq body\n\n# Data Model\n\nkeep");
+  });
+});
+
+describe("parseDossierSections — robustness", () => {
+  it("does not treat '# ' lines inside fenced code blocks as headers", () => {
+    const md = [
+      "# Architecture",
+      "",
+      "```python",
+      "# this is a comment, not a section",
+      "x = 1",
+      "```",
+      "",
+      "# Data Model",
+      "",
+      "one table",
+    ].join("\n");
+    const sections = parseDossierSections(md);
+    expect(sections.map((s) => s.title)).toEqual(["Architecture", "Data Model"]);
+    expect(sections[0].body).toContain("# this is a comment");
+  });
+
+  it("returns [] for empty input", () => {
+    expect(parseDossierSections("")).toEqual([]);
+  });
+
+  it("tolerates CRLF line endings", () => {
+    const md = "# A\r\n\r\nbody line\r\n\r\n# B\r\n\r\nmore";
+    expect(parseDossierSections(md)).toEqual([
+      { title: "A", body: "body line" },
+      { title: "B", body: "more" },
+    ]);
+  });
+});
+
+describe("dossier round-trip", () => {
+  it("parseDossierSections inverts assembleDossier", () => {
+    const sections = [
+      { title: "Problem & Users", body: "It helps X.\n\nSecond para." },
+      { title: "Data Model", body: "```ts\nconst x = 1 // # not a header\n```" },
+    ];
+    expect(parseDossierSections(assembleDossier(sections))).toEqual(sections);
   });
 });
