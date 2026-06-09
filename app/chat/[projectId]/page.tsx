@@ -61,6 +61,12 @@ export default async function ChatPage({
             Drills
           </Link>
           <Link
+            href={`/chat/${projectId}/teachback`}
+            className="text-sm text-muted-foreground hover:underline"
+          >
+            Teach-back
+          </Link>
+          <Link
             href={`/chat/${projectId}/brief`}
             className="text-sm text-muted-foreground hover:underline"
           >
