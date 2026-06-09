@@ -67,6 +67,12 @@ export async function generateDossier(
       generateSectionBody({ rootPath: p.rootPath, projectName: p.name, brief, section }),
   );
 
+  // If every section failed (e.g. bad API key / outage), don't clobber an
+  // existing dossier with an empty file — return the prior content unchanged.
+  if (results.length === 0) {
+    return { markdown: loadDossierSync(p.rootPath), failedSectionIds };
+  }
+
   const markdown = assembleDossier(results);
   saveDossierSync(p.rootPath, markdown);
   return { markdown, failedSectionIds };
