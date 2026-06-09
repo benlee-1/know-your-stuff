@@ -10,9 +10,14 @@ import {
 } from "./dossier";
 
 /**
- * Generate one section body. Two-phase: explore with codebase tools, then force
- * a final write with a NO-TOOLS pass (so the model can't keep calling tools and
- * must emit prose). Throws if even the forced pass yields nothing.
+ * Generate one section body. Two-phase, and Phase 2 ALWAYS runs:
+ *  - Phase 1 explores the codebase with tools (its text output is treated as
+ *    scratch, never the section — the model often emits mid-exploration
+ *    narration like "I now have enough evidence, let me do one final check",
+ *    which must not leak into the dossier).
+ *  - Phase 2 replays the gathered context with NO tools, forcing a clean write
+ *    of just the section body.
+ * Throws if the forced write still yields nothing.
  */
 export async function generateSectionBody(args: {
   rootPath: string;
@@ -28,6 +33,8 @@ export async function generateSectionBody(args: {
   });
   const userPrompt = `Explore the codebase to gather the evidence you need for the "${args.section.title}" section.`;
 
+  // Phase 1 — explore with codebase tools. We keep the gathered messages, not
+  // its prose: ending on a tool call (or on narration) is expected here.
   const tools = makeCodebaseTools(args.rootPath, {
     enable: { list_dir: true, read_file: true, grep: true },
   });
@@ -39,9 +46,7 @@ export async function generateSectionBody(args: {
     stopWhen: ({ steps }) => steps.length >= 20,
   });
 
-  const phase1 = research.text.trim();
-  if (isUsableSectionText(phase1)) return phase1;
-
+  // Phase 2 — always force a clean, narration-free write with no tools.
   const messages: ModelMessage[] = [
     { role: "user", content: userPrompt },
     ...research.response.messages,
