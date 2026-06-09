@@ -14,6 +14,7 @@ import {
   gateDecision,
   mergeProgress,
   computeCurrentSectionId,
+  nextAttemptNumber,
   getProgress,
   upsertProgress,
   type GateOutcome,
@@ -57,7 +58,9 @@ export async function loadWalkthroughState(
     hasDossier,
     sections,
     progress,
-    currentSectionId: hasDossier ? computeCurrentSectionId(progress) : null,
+    currentSectionId: hasDossier
+      ? computeCurrentSectionId(progress, sections.filter((s) => s.body.length === 0).map((s) => s.id))
+      : null,
     missingSectionIds: sections.filter((s) => s.body.length === 0).map((s) => s.id),
   };
 }
@@ -104,34 +107,28 @@ export async function submitWalkthroughAnswer(args: {
   question: string;
   idealAnswer: string;
   userAnswer: string;
-  attemptNumber: number;
 }): Promise<{ grade: Grade; decision: GateOutcome }> {
   const p = getProjectRaw(args.projectId);
   if (!p) throw new Error("Project not found");
   const trimmed = args.userAnswer.trim();
   if (!trimmed) throw new Error("Answer cannot be empty.");
-
   const { title, body } = sectionBodyOrThrow(p.rootPath, args.sectionId);
+
+  const prior = getProgress(args.projectId).find((r) => r.sectionId === args.sectionId) ?? null;
+  const attemptNumber = nextAttemptNumber(prior);
+
   const grade = await gradeFreeTextAnswer({
     question: args.question,
     idealAnswer: args.idealAnswer,
     userAnswer: trimmed,
     context: `Section: ${title}\n\n${body}`,
   });
-
-  const decision = gateDecision(grade.score, args.attemptNumber);
-
-  const prior =
-    getProgress(args.projectId).find((r) => r.sectionId === args.sectionId) ??
-    null;
+  const decision = gateDecision(grade.score, attemptNumber);
   const merged = mergeProgress(
-    prior
-      ? { passed: prior.passed, bestScore: prior.bestScore, attempts: prior.attempts }
-      : null,
+    prior ? { passed: prior.passed, bestScore: prior.bestScore, attempts: prior.attempts } : null,
     grade.score,
     decision.passed,
   );
   upsertProgress(args.projectId, args.sectionId, merged);
-
   return { grade, decision };
 }

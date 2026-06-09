@@ -67,15 +67,21 @@ export function mergeProgress(
   };
 }
 
-/** First DOSSIER_SECTIONS id not yet "done" (done = passed OR attempts exhausted), or null when all done. */
+/** Attempt number for the next submission of a section, derived from the stored row. */
+export function nextAttemptNumber(prior: { attempts: number } | null): number {
+  return (prior?.attempts ?? 0) + 1;
+}
+
+/** First DOSSIER_SECTIONS id not yet done (passed || attempts>=2) and not skippable, or null. */
 export function computeCurrentSectionId(
   progress: Array<{ sectionId: string; passed: boolean; attempts: number }>,
+  skippableIds: string[] = [],
 ): string | null {
-  const doneIds = new Set(
-    progress.filter((p) => p.passed || p.attempts >= 2).map((p) => p.sectionId),
-  );
+  const skip = new Set(skippableIds);
+  const doneIds = new Set(progress.filter((p) => p.passed || p.attempts >= 2).map((p) => p.sectionId));
   for (const s of DOSSIER_SECTIONS) {
-    if (!doneIds.has(s.id)) return s.id;
+    if (doneIds.has(s.id) || skip.has(s.id)) continue;
+    return s.id;
   }
   return null;
 }

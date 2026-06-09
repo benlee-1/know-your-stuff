@@ -10,6 +10,7 @@ import {
   gateDecision,
   mergeProgress,
   computeCurrentSectionId,
+  nextAttemptNumber,
 } from "@/lib/walkthrough";
 import { DOSSIER_SECTIONS } from "@/lib/dossier";
 
@@ -103,8 +104,21 @@ describe("computeCurrentSectionId", () => {
     ] as any;
     expect(computeCurrentSectionId(progress)).toBe(DOSSIER_SECTIONS[0].id);
   });
-  it("null when every section is done", () => {
-    const progress = DOSSIER_SECTIONS.map((s) => ({ sectionId: s.id, passed: true, attempts: 1 })) as any;
-    expect(computeCurrentSectionId(progress)).toBeNull();
+  it("skips sections whose ids are in skippableIds (e.g. empty bodies)", () => {
+    // section 0 empty (skippable), 1 done -> current is 2
+    const progress = [{ sectionId: DOSSIER_SECTIONS[1].id, passed: true, attempts: 1 }] as any;
+    expect(computeCurrentSectionId(progress, [DOSSIER_SECTIONS[0].id])).toBe(DOSSIER_SECTIONS[2].id);
+  });
+  it("returns null when all sections are done or skippable", () => {
+    const progress = DOSSIER_SECTIONS.slice(1).map((s) => ({ sectionId: s.id, passed: true, attempts: 1 })) as any;
+    expect(computeCurrentSectionId(progress, [DOSSIER_SECTIONS[0].id])).toBeNull();
+  });
+});
+
+describe("nextAttemptNumber", () => {
+  it("is 1 with no prior row, else prior.attempts + 1", () => {
+    expect(nextAttemptNumber(null)).toBe(1);
+    expect(nextAttemptNumber({ attempts: 1 })).toBe(2);
+    expect(nextAttemptNumber({ attempts: 2 })).toBe(3);
   });
 });

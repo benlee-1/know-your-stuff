@@ -40,23 +40,16 @@ describe.skipIf(!LIVE)("walkthrough live smoke (KYS_LIVE=1)", () => {
       expect(q.idealAnswer.length).toBeGreaterThan(0);
 
       const good = await submitWalkthroughAnswer({
-        projectId,
-        sectionId: "architecture",
-        question: q.question,
-        idealAnswer: q.idealAnswer,
-        userAnswer: q.idealAnswer,
-        attemptNumber: 1,
+        projectId, sectionId: "architecture",
+        question: q.question, idealAnswer: q.idealAnswer, userAnswer: q.idealAnswer,
       });
       expect(good.grade.score).toBeGreaterThanOrEqual(0.7);
       expect(good.decision.advance).toBe(true);
 
+      const q2 = await generateSectionQuestion(projectId, "data-model", []);
       const bad = await submitWalkthroughAnswer({
-        projectId,
-        sectionId: "architecture",
-        question: q.question,
-        idealAnswer: q.idealAnswer,
-        userAnswer: "I don't know.",
-        attemptNumber: 1,
+        projectId, sectionId: "data-model",
+        question: q2.question, idealAnswer: q2.idealAnswer, userAnswer: "I don't know.",
       });
       expect(bad.grade.score).toBeLessThan(0.7);
       expect(bad.decision.reveal).toBe(true);

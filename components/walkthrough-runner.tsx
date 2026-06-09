@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Markdown } from "@/components/markdown";
 import {
+  loadWalkthroughState,
   generateSectionQuestion,
   submitWalkthroughAnswer,
   type WalkthroughState,
@@ -11,12 +12,11 @@ import {
 
 type Phase =
   | { kind: "idle" }
-  | { kind: "question"; question: string; idealAnswer: string; attempt: number }
+  | { kind: "question"; question: string; idealAnswer: string }
   | {
       kind: "feedback";
       question: string;
       idealAnswer: string;
-      attempt: number;
       grade: { score: number; rationale: string; missedPoints: string[] };
       reveal: boolean;
       advance: boolean;
@@ -38,18 +38,18 @@ export function WalkthroughRunner({
   const [pending, startTransition] = useTransition();
 
   const passedIds = new Set(state.progress.filter((p) => p.passed).map((p) => p.sectionId));
-
-  const isDone = (sectionId: string): boolean => {
-    const row = state.progress.find((p) => p.sectionId === sectionId);
-    return !!row && (row.passed || row.attempts >= 2);
-  };
-
+  const missingIds = new Set(state.missingSectionIds);
   const section = state.sections.find((s) => s.id === currentId) ?? null;
 
-  function statusGlyph(sectionId: string): string {
-    if (passedIds.has(sectionId)) return "✓";
-    if (isDone(sectionId)) return "~"; // completed with reveal (attempts>=2, not passed)
-    if (sectionId === currentId) return "▸";
+  function isDone(id: string): boolean {
+    const r = state.progress.find((p) => p.sectionId === id);
+    return !!r && (r.passed || r.attempts >= 2);
+  }
+  function statusGlyph(id: string): string {
+    if (missingIds.has(id)) return "—";
+    if (passedIds.has(id)) return "✓";
+    if (isDone(id)) return "~";
+    if (id === currentId) return "▸";
     return "○";
   }
 
@@ -60,7 +60,7 @@ export function WalkthroughRunner({
       try {
         const q = await generateSectionQuestion(projectId, currentId, asked);
         setAsked((a) => [...a, q.question]);
-        setPhase({ kind: "question", question: q.question, idealAnswer: q.idealAnswer, attempt: 1 });
+        setPhase({ kind: "question", question: q.question, idealAnswer: q.idealAnswer });
         setAnswer("");
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to generate a question");
@@ -70,7 +70,7 @@ export function WalkthroughRunner({
 
   function submit() {
     if (phase.kind !== "question" || !currentId || !answer.trim()) return;
-    const { question, idealAnswer, attempt } = phase;
+    const { question, idealAnswer } = phase;
     setError(null);
     startTransition(async () => {
       try {
@@ -80,33 +80,8 @@ export function WalkthroughRunner({
           question,
           idealAnswer,
           userAnswer: answer,
-          attemptNumber: attempt,
         });
-        const rows = state.progress.filter((p) => p.sectionId !== currentId);
-        setState({
-          ...state,
-          progress: [
-            ...rows,
-            {
-              id: "local",
-              projectId,
-              sectionId: currentId,
-              passed: decision.passed || passedIds.has(currentId),
-              bestScore: grade.score,
-              attempts: attempt,
-              updatedAt: Date.now(),
-            },
-          ],
-        });
-        setPhase({
-          kind: "feedback",
-          question,
-          idealAnswer,
-          attempt,
-          grade,
-          reveal: decision.reveal,
-          advance: decision.advance,
-        });
+        setPhase({ kind: "feedback", question, idealAnswer, grade, reveal: decision.reveal, advance: decision.advance });
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to grade your answer");
       }
@@ -117,23 +92,21 @@ export function WalkthroughRunner({
     if (phase.kind !== "feedback") return;
     setError(null);
     if (phase.advance) {
-      const order = state.sections.map((s) => s.id);
-      const next = order.find((id) => id !== currentId && !isDone(id)) ?? null;
-      setCurrentId(next);
-      setAsked([]);
-      setPhase({ kind: "idle" });
-      setAnswer("");
-    } else {
       startTransition(async () => {
         try {
-          const q = await generateSectionQuestion(projectId, currentId!, asked);
-          setAsked((a) => [...a, q.question]);
-          setPhase({ kind: "question", question: q.question, idealAnswer: q.idealAnswer, attempt: 2 });
+          const fresh = await loadWalkthroughState(projectId); // server-authoritative
+          setState(fresh);
+          setCurrentId(fresh.currentSectionId);
+          setAsked([]);
+          setPhase({ kind: "idle" });
           setAnswer("");
         } catch (e) {
-          setError(e instanceof Error ? e.message : "Failed to generate a question");
+          setError(e instanceof Error ? e.message : "Failed to load the next section");
         }
       });
+    } else {
+      // reveal path: ask the confirming question (server treats the next submit as attempt 2)
+      ask();
     }
   }
 
@@ -156,6 +129,12 @@ export function WalkthroughRunner({
           </li>
         ))}
       </ol>
+      {missingIds.size > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Sections marked — are empty in the dossier and are skipped.{" "}
+          <Link className="underline" href={`/chat/${projectId}/dossier`}>Regenerate them</Link> to walk them.
+        </p>
+      )}
 
       {error && <p className="text-sm text-red-500">{error}</p>}
 
@@ -163,7 +142,7 @@ export function WalkthroughRunner({
         <div className="space-y-2">
           <h2 className="text-lg font-semibold">Walkthrough complete 🎉</h2>
           <p className="text-sm text-muted-foreground">
-            You worked through all {state.sections.length} sections. Best scores are saved per section.
+            You worked through every walkable section. Best scores are saved per section.
           </p>
         </div>
       ) : !section ? null : (
@@ -173,11 +152,7 @@ export function WalkthroughRunner({
             {section.body ? (
               <Markdown>{section.body}</Markdown>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                This section is empty in the dossier.{" "}
-                <Link className="underline" href={`/chat/${projectId}/dossier`}>Regenerate it</Link>{" "}
-                to walk it.
-              </p>
+              <p className="text-sm text-muted-foreground">This section is empty in the dossier.</p>
             )}
           </article>
 
