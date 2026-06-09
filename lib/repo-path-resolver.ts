@@ -37,12 +37,19 @@ export function buildBasenameIndex(root: string): Set<string> {
   return index;
 }
 
-// A token that fails resolution is NOT a hallucination if it's a CDN/version
-// URL fragment (leading `N.N…`) or a bare file extension named in prose (`.jsx`).
-// Applied ONLY after resolution fails, so a real dotfile like `.gitignore`
-// (which resolves) is never dropped.
+// A token that fails resolution is NOT a hallucination if it's:
+//  - a CDN/version URL fragment (leading `N.N…`)
+//  - a bare file extension named in prose (`.jsx`)
+//  - an external CDN bundle file (`.min.` / `.development.` / `.production.` infix)
+//  - a prose list of tool/library names containing an ALL-CAPS segment (e.g.
+//    "Vite/CRA/Next.js"); real repos almost never have an all-caps path segment.
+// Applied ONLY after resolution fails, so a real file is never dropped.
 function isExternalOrProse(token: string): boolean {
-  return /^\d+\.\d+/.test(token) || /^\.\w+$/.test(token);
+  if (/^\d+\.\d+/.test(token)) return true;
+  if (/^\.\w+$/.test(token)) return true;
+  if (/\.(min|development|production)\./i.test(token)) return true;
+  if (token.split("/").some((seg) => /^[A-Z]{2,}$/.test(seg))) return true;
+  return false;
 }
 
 /**

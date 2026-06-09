@@ -59,4 +59,18 @@ describe("unresolvedCitedPaths", () => {
     // .gitignore exists, so it must resolve (NOT be dropped by the prose-extension rule)
     expect(unresolvedCitedPaths(root, "config in .gitignore")).toEqual([]);
   });
+
+  it("excludes external CDN bundle files (.min./.development./.production.)", () => {
+    const md = "loads react.development.js, react-dom.production.min.js, and babel.min.js";
+    expect(unresolvedCitedPaths(root, md)).toEqual([]);
+  });
+
+  it("excludes prose tool-lists with an all-caps segment (Vite/CRA/Next.js)", () => {
+    expect(unresolvedCitedPaths(root, "alternatives like Vite/CRA/Next.js")).toEqual([]);
+  });
+
+  it("still reports a genuine invented repo file alongside external/prose noise", () => {
+    const md = "uses react.development.js but see FakeController.java";
+    expect(unresolvedCitedPaths(root, md)).toEqual(["FakeController.java"]);
+  });
 });
