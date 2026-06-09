@@ -123,9 +123,7 @@ export function DossierView({
           No dossier yet. Click &ldquo;Generate from repo&rdquo; to build one (eight grounded sections).
         </p>
       ) : (
-        <article className="prose prose-invert max-w-none">
-          <Markdown>{value}</Markdown>
-        </article>
+        <Markdown>{value}</Markdown>
       )}
     </div>
   );
