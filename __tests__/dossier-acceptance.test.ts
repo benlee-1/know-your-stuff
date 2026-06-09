@@ -59,6 +59,6 @@ describe.skipIf(!LIVE)("dossier live acceptance (KYS_LIVE=1)", () => {
         `Hallucinated/unresolvable cited paths:\n${missing.join("\n")}`,
       ).toEqual([]);
     },
-    1_200_000, // 8 sequential agentic passes over a real repo legitimately take >5min
+    2_400_000, // 8 sections × two-phase (explore + forced write) over a real repo; ~3-4min each
   );
 });
