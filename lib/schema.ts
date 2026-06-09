@@ -55,3 +55,15 @@ export const WalkthroughProgressSchema = z.object({
   updatedAt: z.number(),
 });
 export type WalkthroughProgress = z.infer<typeof WalkthroughProgressSchema>;
+
+export const DrillSessionSchema = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  sectionId: z.string(),
+  transcriptJson: z.string(),
+  score: z.number().min(0).max(1),
+  strengthsJson: z.string(),
+  weaknessesJson: z.string(),
+  createdAt: z.number(),
+});
+export type DrillSession = z.infer<typeof DrillSessionSchema>;
