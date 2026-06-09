@@ -33,4 +33,14 @@ describe("buildDossierSectionPrompt", () => {
     const p = buildDossierSectionPrompt({ ...base, briefMarkdown: "# Product\nWidgets" });
     expect(p).toContain("Widgets");
   });
+
+  it("instructs the model to end its turn by writing the section", () => {
+    const p = buildDossierSectionPrompt(base).toLowerCase();
+    expect(p).toContain("end your turn");
+  });
+
+  it("forbids process narration in the output", () => {
+    const p = buildDossierSectionPrompt(base).toLowerCase();
+    expect(p).toContain("do not prefix");
+  });
 });

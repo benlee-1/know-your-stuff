@@ -8,6 +8,7 @@ import {
   parseDossierSections,
   upsertSection,
   runDossierGeneration,
+  isUsableSectionText,
 } from "@/lib/dossier";
 import { dossierPath, loadDossierSync, saveDossierSync } from "@/lib/dossier-storage";
 
@@ -148,6 +149,17 @@ describe("dossier round-trip", () => {
       { title: "Data Model", body: "```ts\nconst x = 1 // # not a header\n```" },
     ];
     expect(parseDossierSections(assembleDossier(sections))).toEqual(sections);
+  });
+});
+
+describe("isUsableSectionText", () => {
+  it("rejects empty / whitespace-only bodies", () => {
+    expect(isUsableSectionText("")).toBe(false);
+    expect(isUsableSectionText("   \n  ")).toBe(false);
+  });
+  it("accepts a real body, including a short 'not demonstrated' degradation", () => {
+    expect(isUsableSectionText("not demonstrated in this repo")).toBe(true);
+    expect(isUsableSectionText("Some grounded prose.")).toBe(true);
   });
 });
 

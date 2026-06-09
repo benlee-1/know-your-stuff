@@ -1,3 +1,14 @@
+/**
+ * A section body is usable if the model actually wrote something. Empty /
+ * whitespace-only output means the model ended in a tool-call loop without
+ * writing the section (step budget exhausted) — that must count as a failure,
+ * not a silent success. Note: a short but real body like
+ * "not demonstrated in this repo" IS usable, so only reject empty/whitespace.
+ */
+export function isUsableSectionText(text: string): boolean {
+  return text.trim().length > 0;
+}
+
 export interface DossierSection {
   id: string;
   title: string;

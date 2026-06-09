@@ -12,6 +12,7 @@ import {
   assembleDossier,
   runDossierGeneration,
   upsertSection,
+  isUsableSectionText,
 } from "@/lib/dossier";
 import { loadDossierSync, saveDossierSync } from "@/lib/dossier-storage";
 
@@ -48,9 +49,15 @@ async function generateSectionBody(args: {
     }),
     prompt: `Write the "${args.section.title}" section now.`,
     tools,
-    stopWhen: ({ steps }) => steps.length >= 12,
+    stopWhen: ({ steps }) => steps.length >= 20,
   });
-  return res.text.trim();
+  const text = res.text.trim();
+  if (!isUsableSectionText(text)) {
+    throw new Error(
+      `Section "${args.section.title}" produced no text (finishReason=${res.finishReason}, steps=${res.steps.length}). The model used its whole step budget on tool calls before writing.`,
+    );
+  }
+  return text;
 }
 
 export async function generateDossier(
