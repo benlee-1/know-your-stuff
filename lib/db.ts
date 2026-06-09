@@ -108,6 +108,29 @@ const MIGRATIONS: { name: string; sql: string }[] = [
       CREATE INDEX idx_drills_project ON drill_sessions(projectId, createdAt);
     `,
   },
+  {
+    name: "004_teachback_sessions",
+    sql: `
+      CREATE TABLE teachback_sessions (
+        id               TEXT PRIMARY KEY,
+        projectId        TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        sectionId        TEXT NOT NULL,
+        explanation      TEXT NOT NULL,
+        coverageScore    REAL NOT NULL,
+        gapsJson         TEXT NOT NULL,
+        socraticQuestion TEXT NOT NULL,
+        response         TEXT NOT NULL,
+        summary          TEXT NOT NULL,
+        stillMissingJson TEXT NOT NULL,
+        createdAt        INTEGER NOT NULL
+      );
+      CREATE INDEX idx_teachback_project ON teachback_sessions(projectId, createdAt);
+    `,
+  },
+  {
+    name: "005_teachback_mastered_points",
+    sql: `ALTER TABLE teachback_sessions ADD COLUMN masteredPointsJson TEXT NOT NULL DEFAULT '[]';`,
+  },
 ];
 
 function runMigrations(db: Db) {
