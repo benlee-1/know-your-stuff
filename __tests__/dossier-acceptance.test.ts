@@ -11,7 +11,8 @@ import { buildDossierSectionPrompt } from "@/lib/prompts/dossier";
 import { makeCodebaseTools } from "@/lib/codebase-tools-ai";
 import { getModel } from "@/lib/ai";
 import { generateText } from "ai";
-import { citedPaths } from "@/lib/cited-paths";
+import { unresolvedCitedPaths } from "@/lib/repo-path-resolver";
+import { saveDossierSync } from "@/lib/dossier-storage";
 
 const LIVE = process.env.KYS_LIVE === "1";
 const TARGET =
@@ -49,12 +50,13 @@ describe.skipIf(!LIVE)("dossier live acceptance (KYS_LIVE=1)", () => {
       const markdown = assembleDossier(results);
       expect(markdown.length).toBeGreaterThan(200);
 
-      // Every cited path must resolve inside the target repo.
-      const cited = citedPaths(markdown);
-      const missing = cited.filter((p) => !fs.existsSync(path.join(TARGET, p)));
+      // Persist for human inspection (green gate != good dossier — read it).
+      saveDossierSync(TARGET, markdown);
+
+      const missing = unresolvedCitedPaths(TARGET, markdown);
       expect(
         missing,
-        `Hallucinated/incorrect cited paths:\n${missing.join("\n")}`,
+        `Hallucinated/unresolvable cited paths:\n${missing.join("\n")}`,
       ).toEqual([]);
     },
     1_200_000, // 8 sequential agentic passes over a real repo legitimately take >5min
